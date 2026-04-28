@@ -23,9 +23,10 @@ export default function RankingsPage({
   season: number
 }) {
   const [mode, setMode]               = useState<ScoreMode>('adjustedFinal')
-  const [orientation, setOrientation] = useState<Orientation>('vertical')
+  const [orientation, setOrientation] = useState<Orientation>('horizontal')
   const [showTable, setShowTable]     = useState(false)
   const [page, setPage]               = useState(0)
+  const [search, setSearch]           = useState('')
 
   // Global sort by active mode's median — determines ranking
   const globalSorted = useMemo(
@@ -35,14 +36,26 @@ export default function RankingsPage({
     [summaries, mode],
   )
 
-  const totalPages = Math.ceil(globalSorted.length / PAGE_SIZE)
-  const pageStart  = page * PAGE_SIZE
-  const pageSummaries = globalSorted.slice(pageStart, pageStart + PAGE_SIZE)
+  // Exact team number search
+  const searchNum = search.trim() !== '' ? parseInt(search.trim(), 10) : NaN
+  const isSearching = !isNaN(searchNum)
+  const searchIndex = isSearching ? globalSorted.findIndex(s => s.teamNumber === searchNum) : -1
+  const searchResult = searchIndex >= 0 ? [globalSorted[searchIndex]] : []
 
-  // Reset to page 0 when mode changes
+  const totalPages    = Math.ceil(globalSorted.length / PAGE_SIZE)
+  const pageStart     = page * PAGE_SIZE
+  const pageSummaries = isSearching ? searchResult : globalSorted.slice(pageStart, pageStart + PAGE_SIZE)
+  const rankOffset    = isSearching ? searchIndex : pageStart
+
+  // Reset to page 0 when mode changes; clear search when switching away from table
   function handleModeChange(next: ScoreMode) {
     setMode(next)
     setPage(0)
+  }
+
+  function handleShowTable(next: boolean) {
+    setShowTable(next)
+    if (!next) setSearch('')
   }
 
   return (
@@ -93,28 +106,49 @@ export default function RankingsPage({
 
         <ToggleSwitch
           checked={showTable}
-          onChange={setShowTable}
+          onChange={handleShowTable}
           labelOff="Chart"
           labelOn="Table"
         />
+
+        {showTable && (
+          <input
+            type="text"
+            inputMode="numeric"
+            placeholder="Team #"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="h-8 w-28 rounded-lg border border-zinc-200 bg-white px-3 text-sm text-zinc-800 placeholder-zinc-400 focus:border-zinc-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder-zinc-500 dark:focus:border-zinc-500"
+          />
+        )}
       </div>
 
       {/* Content */}
       {showTable ? (
-        <SummaryTable
-          summaries={pageSummaries}
-          mode={mode}
-          rowLabel="RANK"
-          rankOffset={pageStart}
-        />
+        <>
+          {isSearching && searchResult.length === 0 ? (
+            <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+              <p className="py-10 text-center text-sm text-zinc-400 dark:text-zinc-500">
+                No team with number {searchNum} found in rankings.
+              </p>
+            </div>
+          ) : (
+            <SummaryTable
+              summaries={pageSummaries}
+              mode={mode}
+              rowLabel="RANK"
+              rankOffset={rankOffset}
+            />
+          )}
+        </>
       ) : (
         <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
           <BoxPlotChart summaries={pageSummaries} mode={mode} orientation={orientation} />
         </div>
       )}
 
-      {/* Pagination */}
-      {totalPages > 1 && (
+      {/* Pagination — hidden while a search is active */}
+      {!isSearching && totalPages > 1 && (
         <div className="mt-6 flex items-center justify-between gap-4">
           <button
             onClick={() => setPage(p => Math.max(0, p - 1))}

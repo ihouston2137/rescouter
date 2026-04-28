@@ -276,7 +276,7 @@ function MatchesTable({ matches }: { matches: MatchRow[] }) {
 
 function AnalysisTab({ summaries, emptyMessage }: { summaries: AllianceSummaryRow[]; emptyMessage?: string }) {
   const [mode, setMode]               = useState<ScoreMode>('adjustedFinal')
-  const [orientation, setOrientation] = useState<Orientation>('vertical')
+  const [orientation, setOrientation] = useState<Orientation>('horizontal')
   const [showTable, setShowTable]     = useState(false)
 
   return (
