@@ -37,7 +37,7 @@ export default async function EventDetailPage({
       .select('-_id matchNumber tournamentLevel description scoreRedFinal scoreBlueFinal teams')
       .lean(),
     EventTeamAllianceSummary.find({ eventCode: code, season })
-      .sort({ finalMax: -1 })
+      .sort({ finalMedian: -1 })
       .select('-_id teamNumber autoMin autoQ1 autoMedian autoQ3 autoMax finalMin finalQ1 finalMedian finalQ3 finalMax')
       .lean(),
   ])

@@ -337,11 +337,11 @@ function BoxPlotChart({
       ? { min: s.finalMin, q1: s.finalQ1, median: s.finalMedian, q3: s.finalQ3, max: s.finalMax }
       : { min: s.autoMin,  q1: s.autoQ1,  median: s.autoMedian,  q3: s.autoQ3,  max: s.autoMax  }
 
-  // Always sort highest → lowest by the active mode's max
+  // Always sort highest → lowest by the active mode's median
   const sorted = [...summaries].sort((a, b) => {
-    const aMax = (mode === 'final' ? a.finalMax : a.autoMax) ?? -Infinity
-    const bMax = (mode === 'final' ? b.finalMax : b.autoMax) ?? -Infinity
-    return bMax - aMax
+    const aMedian = (mode === 'final' ? a.finalMedian : a.autoMedian) ?? -Infinity
+    const bMedian = (mode === 'final' ? b.finalMedian : b.autoMedian) ?? -Infinity
+    return bMedian - aMedian
   })
 
   const allMins  = sorted.map(s => getStats(s).min).filter((v): v is number => v != null)
