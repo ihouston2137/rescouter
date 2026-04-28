@@ -126,14 +126,21 @@ export async function computeAllianceContributions(
   const autoOPR  = leastSquares(A, bAuto)
   const finalOPR = leastSquares(A, bFinal)
 
-  function teammateOPRSum(opr: number[] | null, allianceTeams: number[], exclude: number): number {
-    if (!opr) return 0
-    return allianceTeams
-      .filter(t => t !== exclude)
-      .reduce((sum, t) => {
-        const idx = teamIndex.get(t)
-        return sum + (idx !== undefined ? (opr[idx] ?? 0) : 0)
-      }, 0)
+  function weightedScore(
+    opr: number[],
+    teamNumber: number,
+    allianceTeams: number[],
+    allianceScore: number,
+  ): number {
+    const effective = allianceTeams.map(t => {
+      const idx = teamIndex.get(t)
+      return Math.max(0, idx !== undefined ? (opr[idx] ?? 0) : 0)
+    })
+    const total = effective.reduce((s, v) => s + v, 0)
+    const myIdx = teamIndex.get(teamNumber)
+    const myEffective = myIdx !== undefined ? Math.max(0, opr[myIdx] ?? 0) : 0
+    const weight = total > 0 ? myEffective / total : 1 / allianceTeams.length
+    return round2(allianceScore * weight)
   }
 
   // Build per-team match lists (keep allianceTeams internally for adjusted calc)
@@ -177,8 +184,8 @@ export async function computeAllianceContributions(
       })
       .map(({ allianceTeams, ...m }) => ({
         ...m,
-        adjustedAutoScore:  autoOPR  ? round2(m.allianceAutoScore  - teammateOPRSum(autoOPR,  allianceTeams, teamNumber)) : null,
-        adjustedFinalScore: finalOPR ? round2(m.allianceFinalScore - teammateOPRSum(finalOPR, allianceTeams, teamNumber)) : null,
+        adjustedAutoScore:  autoOPR  ? weightedScore(autoOPR,  teamNumber, allianceTeams, m.allianceAutoScore)  : null,
+        adjustedFinalScore: finalOPR ? weightedScore(finalOPR, teamNumber, allianceTeams, m.allianceFinalScore) : null,
       })),
   }))
 
