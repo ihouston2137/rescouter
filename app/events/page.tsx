@@ -4,6 +4,8 @@ import FrcEvent from '@/lib/models/Event'
 import EventBrowser from './EventBrowser'
 import type { EventRow } from './EventBrowser'
 
+export const dynamic = 'force-dynamic'
+
 export default async function EventsPage() {
   await connectDB()
 
