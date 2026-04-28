@@ -1,7 +1,7 @@
 const INTERVAL_MS = 15 * 60 * 1000
 
 export function register() {
-  if (process.env.NEXT_RUNTIME === 'edge') return
+  if (process.env.NEXT_RUNTIME !== 'nodejs') return
 
   let running = false
   setInterval(async () => {

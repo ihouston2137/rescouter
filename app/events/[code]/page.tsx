@@ -6,8 +6,9 @@ import FrcTeam from '@/lib/models/Team'
 import EventTeams from '@/lib/models/EventTeams'
 import Ranking from '@/lib/models/Ranking'
 import Match from '@/lib/models/Match'
+import EventTeamAllianceSummary from '@/lib/models/EventTeamAllianceSummary'
 import EventPage from './EventPage'
-import type { EventDetail, TeamRow, RankingRow, MatchRow } from './EventPage'
+import type { EventDetail, TeamRow, RankingRow, MatchRow, AllianceSummaryRow } from './EventPage'
 
 export default async function EventDetailPage({
   params,
@@ -26,7 +27,7 @@ export default async function EventDetailPage({
   const season = eventDoc.season as number
 
   // Parallel fetch
-  const [eventTeamDocs, rankingDocs, matchDocs] = await Promise.all([
+  const [eventTeamDocs, rankingDocs, matchDocs, allianceSummaryDocs] = await Promise.all([
     EventTeams.find({ eventCode: code, season }).select('-_id teamNumber').lean(),
     Ranking.find({ eventCode: code, season })
       .sort({ rank: 1 })
@@ -34,6 +35,10 @@ export default async function EventDetailPage({
       .lean(),
     Match.find({ eventCode: code, season })
       .select('-_id matchNumber tournamentLevel description scoreRedFinal scoreBlueFinal teams')
+      .lean(),
+    EventTeamAllianceSummary.find({ eventCode: code, season })
+      .sort({ finalMax: -1 })
+      .select('-_id teamNumber autoMin autoQ1 autoMedian autoQ3 autoMax finalMin finalQ1 finalMedian finalQ3 finalMax')
       .lean(),
   ])
 
@@ -96,6 +101,21 @@ export default async function EventDetailPage({
       return diff !== 0 ? diff : a.matchNumber - b.matchNumber
     })
 
+  // Analysis tab
+  const allianceSummaries: AllianceSummaryRow[] = (allianceSummaryDocs as any[]).map((s: any) => ({
+    teamNumber: s.teamNumber as number,
+    autoMin:    (s.autoMin    as number | undefined) ?? null,
+    autoQ1:     (s.autoQ1    as number | undefined) ?? null,
+    autoMedian: (s.autoMedian as number | undefined) ?? null,
+    autoQ3:     (s.autoQ3    as number | undefined) ?? null,
+    autoMax:    (s.autoMax   as number | undefined) ?? null,
+    finalMin:    (s.finalMin    as number | undefined) ?? null,
+    finalQ1:     (s.finalQ1    as number | undefined) ?? null,
+    finalMedian: (s.finalMedian as number | undefined) ?? null,
+    finalQ3:     (s.finalQ3    as number | undefined) ?? null,
+    finalMax:    (s.finalMax   as number | undefined) ?? null,
+  }))
+
   const event: EventDetail = {
     code: eventDoc.code as string,
     name: (eventDoc.name as string | undefined) ?? '',
@@ -116,7 +136,13 @@ export default async function EventDetailPage({
         >
           ← Events
         </Link>
-        <EventPage event={event} teams={teams} rankings={rankings} matches={matches} />
+        <EventPage
+          event={event}
+          teams={teams}
+          rankings={rankings}
+          matches={matches}
+          allianceSummaries={allianceSummaries}
+        />
       </div>
     </div>
   )

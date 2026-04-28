@@ -1,9 +1,7 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npx tsc *)",
-      "Bash(node scripts/seed.mjs)",
-      "Bash(xargs grep *)"
+      "Bash(npx tsc *)"
     ]
   }
 }

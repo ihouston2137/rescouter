@@ -47,6 +47,20 @@ export type MatchRow = {
   teams: Array<{ teamNumber: number; station: string; dq: boolean }>
 }
 
+export type AllianceSummaryRow = {
+  teamNumber: number
+  autoMin: number | null
+  autoQ1: number | null
+  autoMedian: number | null
+  autoQ3: number | null
+  autoMax: number | null
+  finalMin: number | null
+  finalQ1: number | null
+  finalMedian: number | null
+  finalQ3: number | null
+  finalMax: number | null
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function utcFmt(iso: string, opts: Intl.DateTimeFormatOptions) {
@@ -204,8 +218,6 @@ function MatchesTable({ matches }: { matches: MatchRow[] }) {
     <TableWrap>
       <thead>
         <tr className="border-b border-zinc-100 dark:border-zinc-800">
-          <th className={TH}>Level</th>
-          <th className={TH}>#</th>
           <th className={TH}>Description</th>
           <th className={`${TH} bg-red-50 text-red-600 dark:bg-red-950/25 dark:text-red-400`}>Red Alliance</th>
           <th className={`${TH} bg-blue-50 text-blue-600 dark:bg-blue-950/25 dark:text-blue-400`}>Blue Alliance</th>
@@ -215,7 +227,7 @@ function MatchesTable({ matches }: { matches: MatchRow[] }) {
       </thead>
       <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
         {visible.length === 0 ? (
-          <EmptyRow cols={7} msg="No match data for this event." />
+          <EmptyRow cols={5} msg="No match data for this event." />
         ) : (
           visible.map((m, i) => {
             const redWins =
@@ -229,8 +241,6 @@ function MatchesTable({ matches }: { matches: MatchRow[] }) {
 
             return (
               <tr key={i} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
-                <td className={TD}>{m.tournamentLevel}</td>
-                <td className={TD}>{m.matchNumber}</td>
                 <td className={TD}>{m.description ?? '—'}</td>
                 <td className={`${TD} bg-red-50 font-mono text-red-700 dark:bg-red-950/25 dark:text-red-300`}>
                   <AllianceCell teams={m.teams} color="Red" winner={redWins} />
@@ -263,14 +273,308 @@ function MatchesTable({ matches }: { matches: MatchRow[] }) {
   )
 }
 
+// ── Analysis tab ─────────────────────────────────────────────────────────────
+
+type ScoreMode = 'final' | 'auto'
+
+const FINAL_UPPER  = '#3b82f6'  // blue-500  (Q3 → median)
+const FINAL_LOWER  = '#93c5fd'  // blue-300  (median → Q1)
+const FINAL_STROKE = '#1d4ed8'  // blue-700
+const AUTO_UPPER   = '#f59e0b'  // amber-500 (Q3 → median)
+const AUTO_LOWER   = '#fcd34d'  // amber-300 (median → Q1)
+const AUTO_STROKE  = '#b45309'  // amber-700
+
+type Orientation = 'vertical' | 'horizontal'
+
+function ToggleSwitch({
+  checked,
+  onChange,
+  labelOff,
+  labelOn,
+}: {
+  checked: boolean
+  onChange: (v: boolean) => void
+  labelOff: string
+  labelOn: string
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className={`text-xs font-medium transition-colors ${!checked ? 'text-zinc-700 dark:text-zinc-200' : 'text-zinc-400 dark:text-zinc-500'}`}>
+        {labelOff}
+      </span>
+      <button
+        role="switch"
+        aria-checked={checked}
+        onClick={() => onChange(!checked)}
+        className={`relative h-5 w-9 rounded-full transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-500 ${
+          checked ? 'bg-zinc-700 dark:bg-zinc-300' : 'bg-zinc-300 dark:bg-zinc-600'
+        }`}
+      >
+        <span
+          className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+            checked ? 'translate-x-4' : 'translate-x-0'
+          }`}
+        />
+      </button>
+      <span className={`text-xs font-medium transition-colors ${checked ? 'text-zinc-700 dark:text-zinc-200' : 'text-zinc-400 dark:text-zinc-500'}`}>
+        {labelOn}
+      </span>
+    </div>
+  )
+}
+
+function BoxPlotChart({
+  summaries,
+  mode,
+  orientation,
+}: {
+  summaries: AllianceSummaryRow[]
+  mode: ScoreMode
+  orientation: Orientation
+}) {
+  const getStats = (s: AllianceSummaryRow) =>
+    mode === 'final'
+      ? { min: s.finalMin, q1: s.finalQ1, median: s.finalMedian, q3: s.finalQ3, max: s.finalMax }
+      : { min: s.autoMin,  q1: s.autoQ1,  median: s.autoMedian,  q3: s.autoQ3,  max: s.autoMax  }
+
+  // Always sort highest → lowest by the active mode's max
+  const sorted = [...summaries].sort((a, b) => {
+    const aMax = (mode === 'final' ? a.finalMax : a.autoMax) ?? -Infinity
+    const bMax = (mode === 'final' ? b.finalMax : b.autoMax) ?? -Infinity
+    return bMax - aMax
+  })
+
+  const allMins  = sorted.map(s => getStats(s).min).filter((v): v is number => v != null)
+  const allMaxes = sorted.map(s => getStats(s).max).filter((v): v is number => v != null)
+  const globalMin = allMins.length  > 0 ? Math.min(...allMins)  : 0
+  const globalMax = allMaxes.length > 0 ? Math.max(...allMaxes) : 100
+  const range = globalMax - globalMin || 1
+
+  const upperColor = mode === 'final' ? FINAL_UPPER  : AUTO_UPPER
+  const lowerColor = mode === 'final' ? FINAL_LOWER  : AUTO_LOWER
+  const boxStroke  = mode === 'final' ? FINAL_STROKE : AUTO_STROKE
+
+  const tickCount = 5
+  const ticks = Array.from({ length: tickCount + 1 }, (_, i) =>
+    Math.round(globalMin + (i / tickCount) * range)
+  )
+
+  // ── Vertical layout (teams left→right, scores bottom→top) ──────────────────
+  if (orientation === 'vertical') {
+    const COL_W  = 20
+    const BOX_W  = 12
+    const LEFT   = 40
+    const RIGHT  = 12
+    const TOP    = 16
+    const BOT    = 48
+    const PLOT_H = 320
+    const SVG_W  = LEFT + sorted.length * COL_W + RIGHT
+    const SVG_H  = TOP + PLOT_H + BOT
+
+    const toY  = (v: number) => TOP + PLOT_H - ((v - globalMin) / range) * PLOT_H
+    const colX = (i: number) => LEFT + i * COL_W + COL_W / 2
+
+    return (
+      <div className="overflow-x-auto">
+        <svg
+          viewBox={`0 0 ${SVG_W} ${SVG_H}`}
+          style={{ width: '100%', maxWidth: SVG_W, height: 'auto' }}
+          aria-label={`${mode === 'final' ? 'Final' : 'Auto'} score vertical box plot`}
+        >
+          {ticks.map((tick, idx) => {
+            const y = toY(tick)
+            return (
+              <g key={idx}>
+                <line x1={LEFT} y1={y} x2={LEFT + sorted.length * COL_W} y2={y}
+                  stroke="#94a3b8" strokeOpacity={0.2} strokeWidth={1} />
+                <text x={LEFT - 6} y={y + 4} textAnchor="end"
+                  fontSize={13} fontWeight="bold" fill="#64748b">
+                  {tick}
+                </text>
+              </g>
+            )
+          })}
+
+          <line x1={LEFT} y1={TOP} x2={LEFT} y2={TOP + PLOT_H}
+            stroke="#94a3b8" strokeOpacity={0.3} strokeWidth={1} />
+
+          {sorted.map((s, i) => {
+            const stats   = getStats(s)
+            const cx      = colX(i)
+            const hasData = stats.min != null && stats.q1 != null &&
+              stats.median != null && stats.q3 != null && stats.max != null
+
+            return (
+              <g key={s.teamNumber}>
+                <text
+                  transform={`translate(${cx},${TOP + PLOT_H + 6}) rotate(-90)`}
+                  textAnchor="end" dominantBaseline="middle"
+                  fontSize={13} fontWeight="bold" fill="#64748b"
+                >
+                  {s.teamNumber}
+                </text>
+                {hasData ? (
+                  <>
+                    <line x1={cx} y1={toY(stats.max!)} x2={cx} y2={toY(stats.min!)}
+                      stroke={boxStroke} strokeWidth={1.5} />
+                    <line x1={cx - 5} y1={toY(stats.max!)} x2={cx + 5} y2={toY(stats.max!)}
+                      stroke={boxStroke} strokeWidth={1.5} />
+                    <line x1={cx - 5} y1={toY(stats.min!)} x2={cx + 5} y2={toY(stats.min!)}
+                      stroke={boxStroke} strokeWidth={1.5} />
+                    <rect x={cx - BOX_W / 2} y={toY(stats.q3!)} width={BOX_W}
+                      height={Math.max(1, toY(stats.median!) - toY(stats.q3!))}
+                      fill={upperColor} stroke={boxStroke} strokeWidth={1} />
+                    <rect x={cx - BOX_W / 2} y={toY(stats.median!)} width={BOX_W}
+                      height={Math.max(1, toY(stats.q1!) - toY(stats.median!))}
+                      fill={lowerColor} stroke={boxStroke} strokeWidth={1} />
+                  </>
+                ) : (
+                  <text x={cx} y={TOP + PLOT_H / 2} textAnchor="middle" fontSize={9} fill="#94a3b8">—</text>
+                )}
+              </g>
+            )
+          })}
+        </svg>
+      </div>
+    )
+  }
+
+  // ── Horizontal layout (teams top→bottom, scores left→right) ────────────────
+  const BOX_H  = 14
+  const LEFT   = 48
+  const RIGHT  = 16
+  const TOP    = 28
+  const BOT    = 12
+  const ROW_H  = 32
+  const PLOT_W = 440
+  const SVG_W  = LEFT + PLOT_W + RIGHT
+  const SVG_H  = TOP + sorted.length * ROW_H + BOT
+
+  const toX  = (v: number) => LEFT + ((v - globalMin) / range) * PLOT_W
+  const rowY = (i: number) => TOP + i * ROW_H + ROW_H / 2
+
+  return (
+    <div className="overflow-x-auto">
+      <svg
+        viewBox={`0 0 ${SVG_W} ${SVG_H}`}
+        style={{ width: '100%', maxWidth: SVG_W, height: 'auto' }}
+        aria-label={`${mode === 'final' ? 'Final' : 'Auto'} score horizontal box plot`}
+      >
+        {ticks.map((tick, idx) => {
+          const x = toX(tick)
+          return (
+            <g key={idx}>
+              <line x1={x} y1={TOP - 6} x2={x} y2={TOP + sorted.length * ROW_H}
+                stroke="#94a3b8" strokeOpacity={0.2} strokeWidth={1} />
+              <text x={x} y={TOP - 9} textAnchor="middle"
+                fontSize={13} fontWeight="bold" fill="#64748b">
+                {tick}
+              </text>
+            </g>
+          )
+        })}
+
+        <line x1={LEFT} y1={TOP} x2={LEFT + PLOT_W} y2={TOP}
+          stroke="#94a3b8" strokeOpacity={0.3} strokeWidth={1} />
+
+        {sorted.map((s, i) => {
+          const stats   = getStats(s)
+          const cy      = rowY(i)
+          const hasData = stats.min != null && stats.q1 != null &&
+            stats.median != null && stats.q3 != null && stats.max != null
+
+          return (
+            <g key={s.teamNumber}>
+              <text x={LEFT - 6} y={cy + 4} textAnchor="end"
+                fontSize={13} fontWeight="bold" fill="#64748b">
+                {s.teamNumber}
+              </text>
+              {hasData ? (
+                <>
+                  <line x1={toX(stats.min!)} y1={cy} x2={toX(stats.max!)} y2={cy}
+                    stroke={boxStroke} strokeWidth={1.5} />
+                  <line x1={toX(stats.min!)} y1={cy - 5} x2={toX(stats.min!)} y2={cy + 5}
+                    stroke={boxStroke} strokeWidth={1.5} />
+                  <line x1={toX(stats.max!)} y1={cy - 5} x2={toX(stats.max!)} y2={cy + 5}
+                    stroke={boxStroke} strokeWidth={1.5} />
+                  {/* Left half: Q1 → median (lower scores = lighter shade) */}
+                  <rect x={toX(stats.q1!)} y={cy - BOX_H / 2}
+                    width={Math.max(1, toX(stats.median!) - toX(stats.q1!))} height={BOX_H}
+                    fill={lowerColor} stroke={boxStroke} strokeWidth={1} />
+                  {/* Right half: median → Q3 (higher scores = darker shade) */}
+                  <rect x={toX(stats.median!)} y={cy - BOX_H / 2}
+                    width={Math.max(1, toX(stats.q3!) - toX(stats.median!))} height={BOX_H}
+                    fill={upperColor} stroke={boxStroke} strokeWidth={1} />
+                </>
+              ) : (
+                <text x={LEFT + 8} y={cy + 4} fontSize={9} fill="#94a3b8">—</text>
+              )}
+            </g>
+          )
+        })}
+      </svg>
+    </div>
+  )
+}
+
+function AnalysisTab({ summaries }: { summaries: AllianceSummaryRow[] }) {
+  const [mode, setMode]               = useState<ScoreMode>('final')
+  const [orientation, setOrientation] = useState<Orientation>('vertical')
+
+  return (
+    <div>
+      {/* Controls */}
+      <div className="mb-4 flex flex-wrap items-center gap-4">
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-zinc-500 dark:text-zinc-400">Score type</span>
+          <div className="inline-flex rounded-lg border border-zinc-200 bg-zinc-100 p-0.5 dark:border-zinc-700 dark:bg-zinc-800">
+            {(['final', 'auto'] as ScoreMode[]).map(m => (
+              <button
+                key={m}
+                onClick={() => setMode(m)}
+                className={`rounded-md px-3 py-1 text-xs font-medium capitalize transition-colors ${
+                  mode === m
+                    ? 'bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-zinc-50'
+                    : 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300'
+                }`}
+              >
+                {m}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <ToggleSwitch
+          checked={orientation === 'vertical'}
+          onChange={v => setOrientation(v ? 'vertical' : 'horizontal')}
+          labelOff="Horizontal"
+          labelOn="Vertical"
+        />
+      </div>
+
+      {/* Chart card */}
+      <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+        {summaries.length === 0 ? (
+          <p className="py-10 text-center text-sm text-zinc-400 dark:text-zinc-500">
+            No alliance summary data for this event. Run &ldquo;Generate Alliance Data Summaries&rdquo; in Data Processing first.
+          </p>
+        ) : (
+          <BoxPlotChart summaries={summaries} mode={mode} orientation={orientation} />
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── Main component ───────────────────────────────────────────────────────────
 
-type Tab = 'teams' | 'rankings' | 'matches'
+type Tab = 'teams' | 'rankings' | 'matches' | 'analysis'
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: 'teams', label: 'Teams' },
+  { id: 'teams',    label: 'Teams' },
   { id: 'rankings', label: 'Rankings' },
-  { id: 'matches', label: 'Matches' },
+  { id: 'matches',  label: 'Matches' },
+  { id: 'analysis', label: 'Analysis' },
 ]
 
 export default function EventPage({
@@ -278,15 +582,17 @@ export default function EventPage({
   teams,
   rankings,
   matches,
+  allianceSummaries,
 }: {
   event: EventDetail
   teams: TeamRow[]
   rankings: RankingRow[]
   matches: MatchRow[]
+  allianceSummaries: AllianceSummaryRow[]
 }) {
   const [activeTab, setActiveTab] = useState<Tab>('teams')
 
-  const loc = formatLocation(event.city, event.stateProv, event.country)
+  const loc   = formatLocation(event.city, event.stateProv, event.country)
   const dates = formatDateRange(event.dateStart, event.dateEnd)
 
   return (
@@ -319,9 +625,10 @@ export default function EventPage({
       </div>
 
       {/* Tab content */}
-      {activeTab === 'teams' && <TeamsTable teams={teams} />}
+      {activeTab === 'teams'    && <TeamsTable    teams={teams} />}
       {activeTab === 'rankings' && <RankingsTable rankings={rankings} />}
-      {activeTab === 'matches' && <MatchesTable matches={matches} />}
+      {activeTab === 'matches'  && <MatchesTable  matches={matches} />}
+      {activeTab === 'analysis' && <AnalysisTab   summaries={allianceSummaries} />}
     </div>
   )
 }
