@@ -59,6 +59,16 @@ export type AllianceSummaryRow = {
   finalMedian: number | null
   finalQ3: number | null
   finalMax: number | null
+  adjustedAutoMin: number | null
+  adjustedAutoQ1: number | null
+  adjustedAutoMedian: number | null
+  adjustedAutoQ3: number | null
+  adjustedAutoMax: number | null
+  adjustedFinalMin: number | null
+  adjustedFinalQ1: number | null
+  adjustedFinalMedian: number | null
+  adjustedFinalQ3: number | null
+  adjustedFinalMax: number | null
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -275,14 +285,27 @@ function MatchesTable({ matches }: { matches: MatchRow[] }) {
 
 // ── Analysis tab ─────────────────────────────────────────────────────────────
 
-type ScoreMode = 'final' | 'auto'
+type ScoreMode = 'adjustedFinal' | 'adjustedAuto' | 'final' | 'auto'
 
-const FINAL_UPPER  = '#3b82f6'  // blue-500  (Q3 → median)
-const FINAL_LOWER  = '#93c5fd'  // blue-300  (median → Q1)
-const FINAL_STROKE = '#1d4ed8'  // blue-700
-const AUTO_UPPER   = '#f59e0b'  // amber-500 (Q3 → median)
-const AUTO_LOWER   = '#fcd34d'  // amber-300 (median → Q1)
-const AUTO_STROKE  = '#b45309'  // amber-700
+const SCORE_MODES: { id: ScoreMode; label: string }[] = [
+  { id: 'adjustedFinal', label: 'OPR Final' },
+  { id: 'adjustedAuto',  label: 'OPR Auto'  },
+  { id: 'final',         label: 'Final'      },
+  { id: 'auto',          label: 'Auto'       },
+]
+
+const FINAL_UPPER       = '#3b82f6'  // blue-500
+const FINAL_LOWER       = '#93c5fd'  // blue-300
+const FINAL_STROKE      = '#1d4ed8'  // blue-700
+const AUTO_UPPER        = '#f59e0b'  // amber-500
+const AUTO_LOWER        = '#fcd34d'  // amber-300
+const AUTO_STROKE       = '#b45309'  // amber-700
+const OPR_FINAL_UPPER   = '#10b981'  // emerald-500
+const OPR_FINAL_LOWER   = '#6ee7b7'  // emerald-300
+const OPR_FINAL_STROKE  = '#047857'  // emerald-700
+const OPR_AUTO_UPPER    = '#8b5cf6'  // violet-500
+const OPR_AUTO_LOWER    = '#c4b5fd'  // violet-300
+const OPR_AUTO_STROKE   = '#6d28d9'  // violet-700
 
 type Orientation = 'vertical' | 'horizontal'
 
@@ -332,17 +355,17 @@ function BoxPlotChart({
   mode: ScoreMode
   orientation: Orientation
 }) {
-  const getStats = (s: AllianceSummaryRow) =>
-    mode === 'final'
-      ? { min: s.finalMin, q1: s.finalQ1, median: s.finalMedian, q3: s.finalQ3, max: s.finalMax }
-      : { min: s.autoMin,  q1: s.autoQ1,  median: s.autoMedian,  q3: s.autoQ3,  max: s.autoMax  }
+  const getStats = (s: AllianceSummaryRow) => {
+    switch (mode) {
+      case 'adjustedFinal': return { min: s.adjustedFinalMin, q1: s.adjustedFinalQ1, median: s.adjustedFinalMedian, q3: s.adjustedFinalQ3, max: s.adjustedFinalMax }
+      case 'adjustedAuto':  return { min: s.adjustedAutoMin,  q1: s.adjustedAutoQ1,  median: s.adjustedAutoMedian,  q3: s.adjustedAutoQ3,  max: s.adjustedAutoMax  }
+      case 'final':         return { min: s.finalMin,         q1: s.finalQ1,         median: s.finalMedian,         q3: s.finalQ3,         max: s.finalMax         }
+      case 'auto':          return { min: s.autoMin,          q1: s.autoQ1,          median: s.autoMedian,          q3: s.autoQ3,          max: s.autoMax          }
+    }
+  }
 
   // Always sort highest → lowest by the active mode's median
-  const sorted = [...summaries].sort((a, b) => {
-    const aMedian = (mode === 'final' ? a.finalMedian : a.autoMedian) ?? -Infinity
-    const bMedian = (mode === 'final' ? b.finalMedian : b.autoMedian) ?? -Infinity
-    return bMedian - aMedian
-  })
+  const sorted = [...summaries].sort((a, b) => (getStats(b).median ?? -Infinity) - (getStats(a).median ?? -Infinity))
 
   const allMins  = sorted.map(s => getStats(s).min).filter((v): v is number => v != null)
   const allMaxes = sorted.map(s => getStats(s).max).filter((v): v is number => v != null)
@@ -350,9 +373,14 @@ function BoxPlotChart({
   const globalMax = allMaxes.length > 0 ? Math.max(...allMaxes) : 100
   const range = globalMax - globalMin || 1
 
-  const upperColor = mode === 'final' ? FINAL_UPPER  : AUTO_UPPER
-  const lowerColor = mode === 'final' ? FINAL_LOWER  : AUTO_LOWER
-  const boxStroke  = mode === 'final' ? FINAL_STROKE : AUTO_STROKE
+  const [upperColor, lowerColor, boxStroke] = (() => {
+    switch (mode) {
+      case 'adjustedFinal': return [OPR_FINAL_UPPER,  OPR_FINAL_LOWER,  OPR_FINAL_STROKE]
+      case 'adjustedAuto':  return [OPR_AUTO_UPPER,   OPR_AUTO_LOWER,   OPR_AUTO_STROKE]
+      case 'final':         return [FINAL_UPPER,       FINAL_LOWER,      FINAL_STROKE]
+      case 'auto':          return [AUTO_UPPER,        AUTO_LOWER,       AUTO_STROKE]
+    }
+  })()
 
   const tickCount = 5
   const ticks = Array.from({ length: tickCount + 1 }, (_, i) =>
@@ -517,8 +545,8 @@ function BoxPlotChart({
   )
 }
 
-function AnalysisTab({ summaries }: { summaries: AllianceSummaryRow[] }) {
-  const [mode, setMode]               = useState<ScoreMode>('final')
+function AnalysisTab({ summaries, emptyMessage }: { summaries: AllianceSummaryRow[]; emptyMessage?: string }) {
+  const [mode, setMode]               = useState<ScoreMode>('adjustedFinal')
   const [orientation, setOrientation] = useState<Orientation>('vertical')
 
   return (
@@ -528,17 +556,17 @@ function AnalysisTab({ summaries }: { summaries: AllianceSummaryRow[] }) {
         <div className="flex items-center gap-2">
           <span className="text-sm text-zinc-500 dark:text-zinc-400">Score type</span>
           <div className="inline-flex rounded-lg border border-zinc-200 bg-zinc-100 p-0.5 dark:border-zinc-700 dark:bg-zinc-800">
-            {(['final', 'auto'] as ScoreMode[]).map(m => (
+            {SCORE_MODES.map(({ id, label }) => (
               <button
-                key={m}
-                onClick={() => setMode(m)}
-                className={`rounded-md px-3 py-1 text-xs font-medium capitalize transition-colors ${
-                  mode === m
+                key={id}
+                onClick={() => setMode(id)}
+                className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                  mode === id
                     ? 'bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-zinc-50'
                     : 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300'
                 }`}
               >
-                {m}
+                {label}
               </button>
             ))}
           </div>
@@ -556,7 +584,7 @@ function AnalysisTab({ summaries }: { summaries: AllianceSummaryRow[] }) {
       <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
         {summaries.length === 0 ? (
           <p className="py-10 text-center text-sm text-zinc-400 dark:text-zinc-500">
-            No alliance summary data for this event. Run &ldquo;Generate Alliance Data Summaries&rdquo; in Data Processing first.
+            {emptyMessage ?? 'No alliance summary data for this event. Run “Generate Alliance Data Summaries” in Data Processing first.'}
           </p>
         ) : (
           <BoxPlotChart summaries={summaries} mode={mode} orientation={orientation} />
@@ -568,13 +596,14 @@ function AnalysisTab({ summaries }: { summaries: AllianceSummaryRow[] }) {
 
 // ── Main component ───────────────────────────────────────────────────────────
 
-type Tab = 'teams' | 'rankings' | 'matches' | 'analysis'
+type Tab = 'teams' | 'rankings' | 'matches' | 'pre-analysis' | 'analysis'
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: 'teams',    label: 'Teams' },
-  { id: 'rankings', label: 'Rankings' },
-  { id: 'matches',  label: 'Matches' },
-  { id: 'analysis', label: 'Analysis' },
+  { id: 'teams',        label: 'Teams' },
+  { id: 'rankings',     label: 'Rankings' },
+  { id: 'matches',      label: 'Matches' },
+  { id: 'pre-analysis', label: 'Pre-Analysis' },
+  { id: 'analysis',     label: 'Analysis' },
 ]
 
 export default function EventPage({
@@ -583,12 +612,14 @@ export default function EventPage({
   rankings,
   matches,
   allianceSummaries,
+  latestAllianceSummaries,
 }: {
   event: EventDetail
   teams: TeamRow[]
   rankings: RankingRow[]
   matches: MatchRow[]
   allianceSummaries: AllianceSummaryRow[]
+  latestAllianceSummaries: AllianceSummaryRow[]
 }) {
   const [activeTab, setActiveTab] = useState<Tab>('teams')
 
@@ -625,10 +656,16 @@ export default function EventPage({
       </div>
 
       {/* Tab content */}
-      {activeTab === 'teams'    && <TeamsTable    teams={teams} />}
-      {activeTab === 'rankings' && <RankingsTable rankings={rankings} />}
-      {activeTab === 'matches'  && <MatchesTable  matches={matches} />}
-      {activeTab === 'analysis' && <AnalysisTab   summaries={allianceSummaries} />}
+      {activeTab === 'teams'        && <TeamsTable    teams={teams} />}
+      {activeTab === 'rankings'     && <RankingsTable rankings={rankings} />}
+      {activeTab === 'matches'      && <MatchesTable  matches={matches} />}
+      {activeTab === 'pre-analysis' && (
+        <AnalysisTab
+          summaries={latestAllianceSummaries}
+          emptyMessage='No latest summary data for these teams. Run "Get Latest Alliance Data Summaries" in Data Processing first.'
+        />
+      )}
+      {activeTab === 'analysis'     && <AnalysisTab   summaries={allianceSummaries} />}
     </div>
   )
 }

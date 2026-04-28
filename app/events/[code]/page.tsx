@@ -7,6 +7,7 @@ import EventTeams from '@/lib/models/EventTeams'
 import Ranking from '@/lib/models/Ranking'
 import Match from '@/lib/models/Match'
 import EventTeamAllianceSummary from '@/lib/models/EventTeamAllianceSummary'
+import EventTeamAllianceSummaryLatest from '@/lib/models/EventTeamAllianceSummaryLatest'
 import EventPage from './EventPage'
 import type { EventDetail, TeamRow, RankingRow, MatchRow, AllianceSummaryRow } from './EventPage'
 
@@ -37,14 +38,25 @@ export default async function EventDetailPage({
       .select('-_id matchNumber tournamentLevel description scoreRedFinal scoreBlueFinal teams')
       .lean(),
     EventTeamAllianceSummary.find({ eventCode: code, season })
-      .sort({ finalMedian: -1 })
-      .select('-_id teamNumber autoMin autoQ1 autoMedian autoQ3 autoMax finalMin finalQ1 finalMedian finalQ3 finalMax')
+      .sort({ adjustedFinalMedian: -1, finalMedian: -1 })
+      .select('-_id teamNumber autoMin autoQ1 autoMedian autoQ3 autoMax finalMin finalQ1 finalMedian finalQ3 finalMax adjustedAutoMin adjustedAutoQ1 adjustedAutoMedian adjustedAutoQ3 adjustedAutoMax adjustedFinalMin adjustedFinalQ1 adjustedFinalMedian adjustedFinalQ3 adjustedFinalMax')
       .lean(),
   ])
 
+  // Pre-Analysis tab — latest summaries for teams attending this event
+  const eventTeamNumbers = (eventTeamDocs as any[]).map((e: any) => e.teamNumber as number)
+  const latestSummaryDocs = eventTeamNumbers.length > 0
+    ? await EventTeamAllianceSummaryLatest.find({
+        season,
+        teamNumber: { $in: eventTeamNumbers },
+      })
+        .select('-_id teamNumber autoMin autoQ1 autoMedian autoQ3 autoMax finalMin finalQ1 finalMedian finalQ3 finalMax adjustedAutoMin adjustedAutoQ1 adjustedAutoMedian adjustedAutoQ3 adjustedAutoMax adjustedFinalMin adjustedFinalQ1 adjustedFinalMedian adjustedFinalQ3 adjustedFinalMax')
+        .lean()
+    : []
+
   // Single FrcTeam lookup for all team numbers used across both tabs
   const teamNumberSet = new Set<number>([
-    ...(eventTeamDocs as any[]).map((e: any) => e.teamNumber as number),
+    ...eventTeamNumbers,
     ...(rankingDocs as any[]).map((r: any) => r.teamNumber as number),
   ])
   const teamDocs =
@@ -102,19 +114,35 @@ export default async function EventDetailPage({
     })
 
   // Analysis tab
-  const allianceSummaries: AllianceSummaryRow[] = (allianceSummaryDocs as any[]).map((s: any) => ({
-    teamNumber: s.teamNumber as number,
-    autoMin:    (s.autoMin    as number | undefined) ?? null,
-    autoQ1:     (s.autoQ1    as number | undefined) ?? null,
-    autoMedian: (s.autoMedian as number | undefined) ?? null,
-    autoQ3:     (s.autoQ3    as number | undefined) ?? null,
-    autoMax:    (s.autoMax   as number | undefined) ?? null,
-    finalMin:    (s.finalMin    as number | undefined) ?? null,
-    finalQ1:     (s.finalQ1    as number | undefined) ?? null,
-    finalMedian: (s.finalMedian as number | undefined) ?? null,
-    finalQ3:     (s.finalQ3    as number | undefined) ?? null,
-    finalMax:    (s.finalMax   as number | undefined) ?? null,
-  }))
+  const allianceSummaries: AllianceSummaryRow[] = (allianceSummaryDocs as any[]).map(mapSummaryDoc)
+
+  function mapSummaryDoc(s: any): AllianceSummaryRow {
+    return {
+      teamNumber: s.teamNumber as number,
+      autoMin:    (s.autoMin    as number | undefined) ?? null,
+      autoQ1:     (s.autoQ1    as number | undefined) ?? null,
+      autoMedian: (s.autoMedian as number | undefined) ?? null,
+      autoQ3:     (s.autoQ3    as number | undefined) ?? null,
+      autoMax:    (s.autoMax   as number | undefined) ?? null,
+      finalMin:    (s.finalMin    as number | undefined) ?? null,
+      finalQ1:     (s.finalQ1    as number | undefined) ?? null,
+      finalMedian: (s.finalMedian as number | undefined) ?? null,
+      finalQ3:     (s.finalQ3    as number | undefined) ?? null,
+      finalMax:    (s.finalMax   as number | undefined) ?? null,
+      adjustedAutoMin:    (s.adjustedAutoMin    as number | undefined) ?? null,
+      adjustedAutoQ1:     (s.adjustedAutoQ1     as number | undefined) ?? null,
+      adjustedAutoMedian: (s.adjustedAutoMedian as number | undefined) ?? null,
+      adjustedAutoQ3:     (s.adjustedAutoQ3     as number | undefined) ?? null,
+      adjustedAutoMax:    (s.adjustedAutoMax    as number | undefined) ?? null,
+      adjustedFinalMin:    (s.adjustedFinalMin    as number | undefined) ?? null,
+      adjustedFinalQ1:     (s.adjustedFinalQ1     as number | undefined) ?? null,
+      adjustedFinalMedian: (s.adjustedFinalMedian as number | undefined) ?? null,
+      adjustedFinalQ3:     (s.adjustedFinalQ3     as number | undefined) ?? null,
+      adjustedFinalMax:    (s.adjustedFinalMax    as number | undefined) ?? null,
+    }
+  }
+
+  const latestAllianceSummaries: AllianceSummaryRow[] = (latestSummaryDocs as any[]).map(mapSummaryDoc)
 
   const event: EventDetail = {
     code: eventDoc.code as string,
@@ -142,6 +170,7 @@ export default async function EventDetailPage({
           rankings={rankings}
           matches={matches}
           allianceSummaries={allianceSummaries}
+          latestAllianceSummaries={latestAllianceSummaries}
         />
       </div>
     </div>

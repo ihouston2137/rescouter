@@ -3,6 +3,7 @@ import FrcEvent from './models/Event'
 import Ranking from './models/Ranking'
 import Match from './models/Match'
 import { fetchEventRankings, fetchEventMatches } from './frc'
+import { generateSummariesForEvents } from './generateAllianceSummaries'
 
 export async function syncActiveEvents() {
   await connectDB()
@@ -88,10 +89,15 @@ export async function syncActiveEvents() {
     }
   }
 
+  const summariesCount = await generateSummariesForEvents(
+    (activeEvents as any[]).map(e => ({ code: e.code as string, season: e.season as number }))
+  )
+
   return {
     activeEvents: activeEvents.length,
     eventsProcessed,
     rankingsCount,
     matchesCount,
+    summariesCount,
   }
 }

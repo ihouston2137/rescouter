@@ -40,8 +40,11 @@ function ProcessCard({
 }
 
 export default function ProcessDashboard() {
-  const [allianceResult, setAllianceResult] = useState<ProcessResult | null>(null)
+  const [allianceResult, setAllianceResult]         = useState<ProcessResult | null>(null)
   const [generatingAlliances, setGeneratingAlliances] = useState(false)
+
+  const [latestResult, setLatestResult]           = useState<ProcessResult | null>(null)
+  const [generatingLatest, setGeneratingLatest]   = useState(false)
 
   async function generateAllianceSummaries() {
     setGeneratingAlliances(true)
@@ -56,6 +59,19 @@ export default function ProcessDashboard() {
     }
   }
 
+  async function generateLatestSummaries() {
+    setGeneratingLatest(true)
+    setLatestResult(null)
+    try {
+      const res = await fetch('/api/admin/generate-alliance-summaries-latest', { method: 'POST' })
+      setLatestResult(await res.json())
+    } catch {
+      setLatestResult({ error: 'Network error' })
+    } finally {
+      setGeneratingLatest(false)
+    }
+  }
+
   return (
     <div className="grid gap-6 sm:grid-cols-2">
       <ProcessCard
@@ -65,6 +81,14 @@ export default function ProcessDashboard() {
         onRun={generateAllianceSummaries}
         loading={generatingAlliances}
         result={allianceResult}
+      />
+      <ProcessCard
+        title="Latest Alliance Data Summaries"
+        description="Process all completed events oldest to newest, copying each team's alliance summary into a per-season latest table. Each team's record reflects their most recently completed event."
+        buttonLabel="Get Latest Alliance Data Summaries"
+        onRun={generateLatestSummaries}
+        loading={generatingLatest}
+        result={latestResult}
       />
     </div>
   )
