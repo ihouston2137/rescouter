@@ -175,6 +175,9 @@ export default function ProcessDashboard() {
   const [scoutradiozFile, setScoutradiozFile]           = useState<File | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  const [srSummaryResult, setSrSummaryResult]         = useState<ProcessResult | null>(null)
+  const [processingSrSummary, setProcessingSrSummary] = useState(false)
+
   // ScoutRadioz table
   const [filterEvent, setFilterEvent] = useState('')
   const [filterTeam, setFilterTeam]   = useState('')
@@ -218,6 +221,19 @@ export default function ProcessDashboard() {
       setLatestResult({ error: 'Network error' })
     } finally {
       setGeneratingLatest(false)
+    }
+  }
+
+  async function processScoutradiozSummaries() {
+    setProcessingSrSummary(true)
+    setSrSummaryResult(null)
+    try {
+      const res = await fetch('/api/admin/process-scoutradioz', { method: 'POST' })
+      setSrSummaryResult(await res.json())
+    } catch {
+      setSrSummaryResult({ error: 'Network error' })
+    } finally {
+      setProcessingSrSummary(false)
     }
   }
 
@@ -352,6 +368,14 @@ export default function ProcessDashboard() {
             </p>
           )}
         </div>
+        <ProcessCard
+          title="Process ScoutRadioz Summaries"
+          description="For every past event, calculate per-team scouting summaries (contribution, reliability, foul, climb, defense, freeze, recover, jam, stuck, tip, top-robot scores) from ScoutRadioz records and upsert into the scoutradioz-summary collection."
+          buttonLabel="Process ScoutRadioz Summaries"
+          onRun={processScoutradiozSummaries}
+          loading={processingSrSummary}
+          result={srSummaryResult}
+        />
       </div>
 
       {/* Divider */}
