@@ -40,7 +40,7 @@ type ProcessedRec = {
   beached?:       number;  stuckTrench?: number; stuckBump?: number
   damaged?:       number;  died?: number; tipped?: number
   autoCycles?:    number;  autoScore?: number
-  teleFuelCycles?: number; teleScore?: number; telePassCycles?: number
+  teleFuelCycles?: number; teleScore?: number; totalScore?: number; telePassCycles?: number
   accuracyRating?: number; skillRating?: number; defenseRating?: number
 }
 
@@ -51,7 +51,7 @@ const BOOL_FIELDS = [
 ] as const
 
 const NUM_FIELDS = [
-  'autoCycles', 'autoScore', 'teleFuelCycles', 'teleScore', 'telePassCycles',
+  'autoCycles', 'autoScore', 'teleFuelCycles', 'teleScore', 'totalScore', 'telePassCycles',
   'accuracyRating', 'skillRating', 'defenseRating',
 ] as const
 

@@ -27,6 +27,7 @@ const ScoutRadiozSummarySchema = new Schema({
   autoScore:      { type: Schema.Types.Mixed },
   teleFuelCycles: { type: Schema.Types.Mixed },
   teleScore:      { type: Schema.Types.Mixed },
+  totalScore:     { type: Schema.Types.Mixed },
   telePassCycles: { type: Schema.Types.Mixed },
   accuracyRating: { type: Schema.Types.Mixed },
   skillRating:    { type: Schema.Types.Mixed },

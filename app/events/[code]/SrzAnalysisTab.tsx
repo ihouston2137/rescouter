@@ -15,7 +15,7 @@ type SrzSummary = {
   beached:        number; stuckTrench: number; stuckBump: number
   damaged:        number; died: number; tipped: number
   autoCycles:     StatBlock; autoScore: StatBlock
-  teleFuelCycles: StatBlock; teleScore: StatBlock; telePassCycles: StatBlock
+  teleFuelCycles: StatBlock; teleScore: StatBlock; totalScore: StatBlock; telePassCycles: StatBlock
   accuracyRating: StatBlock; skillRating: StatBlock; defenseRating: StatBlock
 }
 
@@ -23,7 +23,7 @@ type ProcessedRec = {
   matchNumber: number; tournamentLevel: string
   startPosition?: string
   autoScoredFuel?: number; autoCycles?: number; autoScore?: number; autoClimb?: number
-  teleScoredFuel?: number; teleFuelCycles?: number; teleScore?: number; telePassCycles?: number
+  teleScoredFuel?: number; teleFuelCycles?: number; teleScore?: number; totalScore?: number; telePassCycles?: number
   endgameClimb?: number; endgameClimbLevel?: string
   passNeutral?: number; passOpposite?: number
   beached?: number; stuckTrench?: number; stuckBump?: number
@@ -33,10 +33,11 @@ type ProcessedRec = {
 
 // ── Field definitions ─────────────────────────────────────────────────────────
 
-type NumKey  = 'autoCycles' | 'autoScore' | 'teleFuelCycles' | 'teleScore' | 'telePassCycles' | 'accuracyRating' | 'skillRating' | 'defenseRating'
+type NumKey  = 'autoCycles' | 'autoScore' | 'teleFuelCycles' | 'teleScore' | 'totalScore' | 'telePassCycles' | 'accuracyRating' | 'skillRating' | 'defenseRating'
 type BoolKey = 'autoScoredFuel' | 'autoClimb' | 'teleScoredFuel' | 'endgameClimb' | 'passNeutral' | 'passOpposite' | 'beached' | 'stuckTrench' | 'stuckBump' | 'damaged' | 'died' | 'tipped'
 
 const NUM_FIELDS: { key: NumKey; label: string }[] = [
+  { key: 'totalScore',     label: 'Total Score' },
   { key: 'autoScore',      label: 'Auto Score' },
   { key: 'autoCycles',     label: 'Auto Cycles' },
   { key: 'teleScore',      label: 'Tele Score' },
@@ -63,6 +64,7 @@ const BOOL_FIELDS: { key: BoolKey; label: string; higherIsWorse?: boolean }[] = 
 ]
 
 const PROC_COLS: { key: keyof ProcessedRec; label: string; bool?: boolean }[] = [
+  { key: 'totalScore',        label: 'Total' },
   { key: 'startPosition',     label: 'Position' },
   { key: 'autoScoredFuel',    label: 'Auto Fuel',    bool: true },
   { key: 'autoCycles',        label: 'A.Cyc' },
@@ -564,7 +566,7 @@ export default function SrzAnalysisTab({ eventCode }: { eventCode: string }) {
   const [category, setCategory]   = useState<Category>('numeric')
   const [numView, setNumView]     = useState<NumView>('chart')
   const [boolView, setBoolView]   = useState<BoolView>('chart')
-  const [numField, setNumField]   = useState<NumKey>('autoScore')
+  const [numField, setNumField]   = useState<NumKey>('totalScore')
   const [boolField, setBoolField] = useState<BoolKey>('autoScoredFuel')
   const [selectedTeam, setSelectedTeam] = useState<number | null>(null)
 

@@ -48,6 +48,7 @@ export const OUTPUT_FIELDS: { name: string; type: OutputType }[] = [
   { name: 'teleScoredFuel',    type: 'boolean' },
   { name: 'teleFuelCycles',    type: 'number' },
   { name: 'teleScore',         type: 'number' },
+  { name: 'totalScore',        type: 'number' },
   { name: 'telePassCycles',    type: 'number' },
   { name: 'endgameClimb',      type: 'boolean' },
   { name: 'endgameClimbLevel', type: 'string' },

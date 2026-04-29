@@ -16,6 +16,7 @@ const ScoutRadiozProcessedSchema = new Schema({
   teleScoredFuel:     Number,
   teleFuelCycles:     Number,
   teleScore:          Number,
+  totalScore:         Number,
   telePassCycles:     Number,
   endgameClimb:       Number,
   endgameClimbLevel:  String,
