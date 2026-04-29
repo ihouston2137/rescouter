@@ -10,6 +10,7 @@ import {
   BoxPlotChart,
   SummaryTable,
 } from '@/components/AnalysisView'
+import SrzAnalysisTab from './SrzAnalysisTab'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -339,7 +340,7 @@ function AnalysisTab({ summaries, emptyMessage }: { summaries: AllianceSummaryRo
 
 // ── Main component ───────────────────────────────────────────────────────────
 
-type Tab = 'teams' | 'rankings' | 'matches' | 'pre-analysis' | 'analysis'
+type Tab = 'teams' | 'rankings' | 'matches' | 'pre-analysis' | 'analysis' | 'srz-analysis'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'teams',        label: 'Teams' },
@@ -347,6 +348,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'matches',      label: 'Matches' },
   { id: 'pre-analysis', label: 'Pre-Analysis' },
   { id: 'analysis',     label: 'Analysis' },
+  { id: 'srz-analysis', label: 'SRz Analysis' },
 ]
 
 export default function EventPage({
@@ -409,6 +411,7 @@ export default function EventPage({
         />
       )}
       {activeTab === 'analysis'     && <AnalysisTab   summaries={allianceSummaries} />}
+      {activeTab === 'srz-analysis' && <SrzAnalysisTab eventCode={event.code} />}
     </div>
   )
 }

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useCallback, useEffect } from 'react'
+import ScoutRadiozConfigPanel from './ScoutRadiozConfigPanel'
 
 type ProcessResult = { count?: number; message?: string; error?: string }
 
@@ -517,6 +518,12 @@ export default function ProcessDashboard() {
 
       {/* Detail modal */}
       {detailId && <DetailModal id={detailId} onClose={() => setDetailId(null)} />}
+
+      {/* Divider */}
+      <hr className="border-zinc-200 dark:border-zinc-700" />
+
+      {/* ScoutRadioz config */}
+      <ScoutRadiozConfigPanel />
     </div>
   )
 }

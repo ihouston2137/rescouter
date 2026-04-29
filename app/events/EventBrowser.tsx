@@ -62,6 +62,7 @@ const selectCls =
 export default function EventBrowser({ events }: { events: EventRow[] }) {
   const [week, setWeek] = useState('')
   const [district, setDistrict] = useState('')
+  const [codeSearch, setCodeSearch] = useState('')
 
   const weeks = useMemo(() => {
     const seen = new Set<string>()
@@ -80,9 +81,10 @@ export default function EventBrowser({ events }: { events: EventRow[] }) {
       events.filter((e) => {
         if (week && (!e.dateStart || weekMonday(e.dateStart) !== week)) return false
         if (district && e.districtCode !== district) return false
+        if (codeSearch && !e.code.toUpperCase().includes(codeSearch.toUpperCase())) return false
         return true
       }),
-    [events, week, district]
+    [events, week, district, codeSearch]
   )
 
   return (
@@ -103,9 +105,17 @@ export default function EventBrowser({ events }: { events: EventRow[] }) {
           ))}
         </select>
 
-        {(week || district) && (
+        <input
+          type="text"
+          value={codeSearch}
+          onChange={(e) => setCodeSearch(e.target.value)}
+          placeholder="Search by event code…"
+          className="h-9 rounded-lg border border-zinc-300 bg-white px-3 text-sm text-zinc-700 placeholder:text-zinc-400 focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 dark:placeholder:text-zinc-500"
+        />
+
+        {(week || district || codeSearch) && (
           <button
-            onClick={() => { setWeek(''); setDistrict('') }}
+            onClick={() => { setWeek(''); setDistrict(''); setCodeSearch('') }}
             className="h-9 rounded-lg border border-zinc-200 bg-white px-3 text-sm text-zinc-500 transition-colors hover:text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
           >
             Clear
