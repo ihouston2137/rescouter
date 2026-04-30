@@ -216,25 +216,45 @@ function RankingsTable({ rankings }: { rankings: RankingRow[] }) {
 
 // ── Schedule table ────────────────────────────────────────────────────────────
 
-function ScheduleTable({ rows }: { rows: ScheduleRow[] }) {
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+
+function ScheduleTable({
+  rows,
+  finalMedianMap,
+}: {
+  rows: ScheduleRow[]
+  finalMedianMap: Map<number, number | null>
+}) {
   if (rows.length === 0) return null
 
-  // FRC API returns startTime as UTC with no 'Z' suffix. Append 'Z' to force
-  // UTC parsing, then let the browser format in the user's local timezone.
-  function fmtScheduleTime(raw: string): { date: string; time: string; tzAbbr: string } {
-    const d = new Date(raw.includes('Z') || raw.includes('+') ? raw : raw + 'Z')
-    const date    = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-    const time    = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
-    const tzAbbr  = new Intl.DateTimeFormat('en-US', { timeZoneName: 'short' })
-      .formatToParts(d).find(p => p.type === 'timeZoneName')?.value ?? ''
-    return { date, time, tzAbbr }
+  // FRC API returns startTime as venue-local "YYYY-MM-DDTHH:MM:SS" with no TZ offset.
+  // Split the string directly — no Date conversion needed.
+  function fmtScheduleTime(raw: string) {
+    const [datePart, timePart] = raw.split('T')
+    const [, mo, dy] = datePart.split('-').map(Number)
+    const [hh, mm]   = timePart.split(':').map(Number)
+    const ampm = hh >= 12 ? 'PM' : 'AM'
+    const h12  = hh % 12 || 12
+    return `${MONTHS[mo - 1]} ${dy}  ${h12}:${mm.toString().padStart(2, '0')} ${ampm}`
   }
 
-  function alliance(teams: ScheduleRow['teams'], color: 'Red' | 'Blue') {
+  function allianceTeams(teams: ScheduleRow['teams'], color: 'Red' | 'Blue') {
     return [1, 2, 3].map(n => {
       const t = teams.find(t => t.station === `${color}${n}`)
       return t ? `${t.teamNumber}${t.surrogate ? 'S' : ''}` : '—'
     }).join(' · ')
+  }
+
+  function allianceOpr(teams: ScheduleRow['teams'], color: 'Red' | 'Blue') {
+    let total = 0, count = 0
+    for (let n = 1; n <= 3; n++) {
+      const t = teams.find(t => t.station === `${color}${n}`)
+      if (t) {
+        const val = finalMedianMap.get(t.teamNumber)
+        if (val != null) { total += val; count++ }
+      }
+    }
+    return count > 0 ? total.toFixed(1) : '—'
   }
 
   return (
@@ -245,29 +265,28 @@ function ScheduleTable({ rows }: { rows: ScheduleRow[] }) {
 
       {/* Mobile: cards */}
       <div className="space-y-2 sm:hidden">
-        {rows.map((m, i) => {
-          const fmt = m.startTime ? fmtScheduleTime(m.startTime) : null
-          return (
-            <div key={i} className="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-              <div className="flex items-center justify-between border-b border-zinc-100 px-3 py-1.5 dark:border-zinc-800">
-                <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">{m.description ?? '—'}</span>
-                {fmt && (
-                  <span className="text-xs text-zinc-400 dark:text-zinc-500">
-                    {fmt.date} {fmt.time} {fmt.tzAbbr}
-                  </span>
-                )}
+        {rows.map((m, i) => (
+          <div key={i} className="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+            <div className="flex items-center justify-between border-b border-zinc-100 px-3 py-1.5 dark:border-zinc-800">
+              <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">{m.description ?? '—'}</span>
+              {m.startTime && (
+                <span className="text-xs text-zinc-400 dark:text-zinc-500">
+                  {fmtScheduleTime(m.startTime)}
+                </span>
+              )}
+            </div>
+            <div className="grid grid-cols-2 divide-x divide-zinc-100 dark:divide-zinc-800">
+              <div className="bg-red-50/50 p-3 dark:bg-red-950/10">
+                <p className="font-mono text-xs text-red-700 dark:text-red-300">{allianceTeams(m.teams, 'Red')}</p>
+                <p className="mt-1 text-xs text-red-500 dark:text-red-400">OPR {allianceOpr(m.teams, 'Red')}</p>
               </div>
-              <div className="grid grid-cols-2 divide-x divide-zinc-100 dark:divide-zinc-800">
-                <div className="bg-red-50/50 p-3 dark:bg-red-950/10">
-                  <p className="font-mono text-xs text-red-700 dark:text-red-300">{alliance(m.teams, 'Red')}</p>
-                </div>
-                <div className="bg-blue-50/50 p-3 dark:bg-blue-950/10">
-                  <p className="font-mono text-xs text-blue-700 dark:text-blue-300">{alliance(m.teams, 'Blue')}</p>
-                </div>
+              <div className="bg-blue-50/50 p-3 dark:bg-blue-950/10">
+                <p className="font-mono text-xs text-blue-700 dark:text-blue-300">{allianceTeams(m.teams, 'Blue')}</p>
+                <p className="mt-1 text-xs text-blue-500 dark:text-blue-400">OPR {allianceOpr(m.teams, 'Blue')}</p>
               </div>
             </div>
-          )
-        })}
+          </div>
+        ))}
       </div>
 
       {/* Desktop: table */}
@@ -278,27 +297,32 @@ function ScheduleTable({ rows }: { rows: ScheduleRow[] }) {
               <th className={TH}>Match</th>
               <th className={TH}>Start Time</th>
               <th className={`${TH} bg-red-50 text-red-600 dark:bg-red-950/25 dark:text-red-400`}>Red Alliance</th>
+              <th className={`${TH} bg-red-50 text-red-600 dark:bg-red-950/25 dark:text-red-400`}>Red OPR</th>
               <th className={`${TH} bg-blue-50 text-blue-600 dark:bg-blue-950/25 dark:text-blue-400`}>Blue Alliance</th>
+              <th className={`${TH} bg-blue-50 text-blue-600 dark:bg-blue-950/25 dark:text-blue-400`}>Blue OPR</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
-            {rows.map((m, i) => {
-              const fmt = m.startTime ? fmtScheduleTime(m.startTime) : null
-              return (
-                <tr key={i} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
-                  <td className={TD}>{m.description ?? '—'}</td>
-                  <td className={`${TD} tabular-nums text-zinc-400 dark:text-zinc-500`}>
-                    {fmt ? `${fmt.date} ${fmt.time} ${fmt.tzAbbr}` : '—'}
-                  </td>
-                  <td className={`${TD} bg-red-50 font-mono text-red-700 dark:bg-red-950/25 dark:text-red-300`}>
-                    {alliance(m.teams, 'Red')}
-                  </td>
-                  <td className={`${TD} bg-blue-50 font-mono text-blue-700 dark:bg-blue-950/25 dark:text-blue-300`}>
-                    {alliance(m.teams, 'Blue')}
-                  </td>
-                </tr>
-              )
-            })}
+            {rows.map((m, i) => (
+              <tr key={i} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
+                <td className={TD}>{m.description ?? '—'}</td>
+                <td className={`${TD} tabular-nums text-zinc-400 dark:text-zinc-500`}>
+                  {m.startTime ? fmtScheduleTime(m.startTime) : '—'}
+                </td>
+                <td className={`${TD} bg-red-50 font-mono text-red-700 dark:bg-red-950/25 dark:text-red-300`}>
+                  {allianceTeams(m.teams, 'Red')}
+                </td>
+                <td className={`${TD} bg-red-50 tabular-nums text-red-700 dark:bg-red-950/25 dark:text-red-300`}>
+                  {allianceOpr(m.teams, 'Red')}
+                </td>
+                <td className={`${TD} bg-blue-50 font-mono text-blue-700 dark:bg-blue-950/25 dark:text-blue-300`}>
+                  {allianceTeams(m.teams, 'Blue')}
+                </td>
+                <td className={`${TD} bg-blue-50 tabular-nums text-blue-700 dark:bg-blue-950/25 dark:text-blue-300`}>
+                  {allianceOpr(m.teams, 'Blue')}
+                </td>
+              </tr>
+            ))}
           </tbody>
         </TableWrap>
       </div>
@@ -511,6 +535,11 @@ export default function EventPage({
 }) {
   const eventEnded = event.dateEnd ? new Date(event.dateEnd) < new Date() : false
 
+  // team → finalMedian: latest summaries as base, event summaries override
+  const finalMedianMap = new Map<number, number | null>()
+  for (const s of latestAllianceSummaries) finalMedianMap.set(s.teamNumber, s.finalMedian)
+  for (const s of allianceSummaries)       finalMedianMap.set(s.teamNumber, s.finalMedian)
+
   // Schedule entries that don't yet have a scored match record
   const scoredKeys = new Set(
     matches
@@ -556,7 +585,7 @@ export default function EventPage({
       </p>
 
       {/* Tab bar — horizontally scrollable on small screens */}
-      <div className="mb-6 flex gap-1 overflow-x-auto border-b border-zinc-200 dark:border-zinc-800">
+      <div className="mb-6 flex gap-1 overflow-x-auto overflow-y-hidden border-b border-zinc-200 dark:border-zinc-800">
         {visibleTabs.map((t) => (
           <button
             key={t.id}
@@ -595,7 +624,7 @@ export default function EventPage({
             )}
           </div>
           <div className="space-y-6">
-            <ScheduleTable rows={filteredSchedule} />
+            <ScheduleTable rows={filteredSchedule} finalMedianMap={finalMedianMap} />
             <MatchesTable matches={filteredMatches} />
           </div>
         </div>
