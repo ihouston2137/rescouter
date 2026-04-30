@@ -41,6 +41,21 @@ export async function fetchEventTeams(eventCode: string, season = process.env.Se
   return teams
 }
 
+export async function fetchEventSchedule(eventCode: string, season = process.env.Season ?? '2026') {
+  const levels = ['Qualification', 'Playoff']
+  const all: Record<string, unknown>[] = []
+  for (const level of levels) {
+    try {
+      const data = await frcFetch(`/${season}/schedule/${eventCode}?tournamentLevel=${level}`)
+      const entries = (data.Schedule ?? []) as Record<string, unknown>[]
+      for (const e of entries) all.push({ ...e, tournamentLevel: level })
+    } catch {
+      // level not available yet — skip
+    }
+  }
+  return all
+}
+
 export async function fetchAllTeams(season = process.env.Season ?? '2026') {
   const first = await frcFetch(`/${season}/teams?page=1`)
   const teams: Record<string, unknown>[] = [...(first.teams ?? [])]

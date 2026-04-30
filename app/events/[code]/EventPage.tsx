@@ -57,6 +57,14 @@ export type MatchRow = {
   teams: Array<{ teamNumber: number; station: string; dq: boolean }>
 }
 
+export type ScheduleRow = {
+  matchNumber: number
+  tournamentLevel: string
+  description: string | null
+  startTime: string | null
+  teams: Array<{ teamNumber: number; station: string; surrogate: boolean }>
+}
+
 export type { AllianceSummaryRow } from '@/components/AnalysisView'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -139,9 +147,9 @@ function TeamsTable({ teams }: { teams: TeamRow[] }) {
         <tr className="border-b border-zinc-100 dark:border-zinc-800">
           <th className={TH}>#</th>
           <th className={TH}>Name</th>
-          <th className={TH}>City</th>
-          <th className={TH}>State/Prov</th>
-          <th className={TH}>Rookie Year</th>
+          <th className={`${TH} hidden sm:table-cell`}>City</th>
+          <th className={`${TH} hidden sm:table-cell`}>State/Prov</th>
+          <th className={`${TH} hidden sm:table-cell`}>Rookie Year</th>
         </tr>
       </thead>
       <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
@@ -152,9 +160,9 @@ function TeamsTable({ teams }: { teams: TeamRow[] }) {
             <tr key={t.teamNumber} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
               <td className={`${TD} font-medium`}>{t.teamNumber}</td>
               <td className={TD}>{t.nameShort ?? '—'}</td>
-              <td className={TD}>{t.city ?? '—'}</td>
-              <td className={TD}>{t.stateProv ?? '—'}</td>
-              <td className={TD}>{t.rookieYear ?? '—'}</td>
+              <td className={`${TD} hidden sm:table-cell`}>{t.city ?? '—'}</td>
+              <td className={`${TD} hidden sm:table-cell`}>{t.stateProv ?? '—'}</td>
+              <td className={`${TD} hidden sm:table-cell`}>{t.rookieYear ?? '—'}</td>
             </tr>
           ))
         )}
@@ -171,10 +179,9 @@ function RankingsTable({ rankings }: { rankings: RankingRow[] }) {
       <thead>
         <tr className="border-b border-zinc-100 dark:border-zinc-800">
           <th className={TH}>#</th>
-          <th className={TH}>Name</th>
+          <th className={`${TH} hidden sm:table-cell`}>Name</th>
           <th className={TH}>Rank</th>
           <th className={TH}>W-L-T</th>
-          {/* Sort order columns: progressively revealed by breakpoint */}
           <th className={TH}>RS 1</th>
           <th className={`${TH} hidden sm:table-cell`}>RS 2</th>
           <th className={`${TH} hidden md:table-cell`}>RS 3</th>
@@ -190,7 +197,7 @@ function RankingsTable({ rankings }: { rankings: RankingRow[] }) {
           rankings.map((r) => (
             <tr key={r.teamNumber} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
               <td className={`${TD} font-medium`}>{r.teamNumber}</td>
-              <td className={TD}>{r.nameShort ?? '—'}</td>
+              <td className={`${TD} hidden sm:table-cell`}>{r.nameShort ?? '—'}</td>
               <td className={TD}>{r.rank}</td>
               <td className={`${TD} font-mono`}>{r.wins}-{r.losses}-{r.ties}</td>
               <td className={TD}>{r.sortOrder1 ?? '—'}</td>
@@ -207,67 +214,199 @@ function RankingsTable({ rankings }: { rankings: RankingRow[] }) {
   )
 }
 
+// ── Schedule table ────────────────────────────────────────────────────────────
+
+function ScheduleTable({ rows }: { rows: ScheduleRow[] }) {
+  if (rows.length === 0) return null
+
+  // FRC API returns startTime as UTC with no 'Z' suffix. Append 'Z' to force
+  // UTC parsing, then let the browser format in the user's local timezone.
+  function fmtScheduleTime(raw: string): { date: string; time: string; tzAbbr: string } {
+    const d = new Date(raw.includes('Z') || raw.includes('+') ? raw : raw + 'Z')
+    const date    = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    const time    = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+    const tzAbbr  = new Intl.DateTimeFormat('en-US', { timeZoneName: 'short' })
+      .formatToParts(d).find(p => p.type === 'timeZoneName')?.value ?? ''
+    return { date, time, tzAbbr }
+  }
+
+  function alliance(teams: ScheduleRow['teams'], color: 'Red' | 'Blue') {
+    return [1, 2, 3].map(n => {
+      const t = teams.find(t => t.station === `${color}${n}`)
+      return t ? `${t.teamNumber}${t.surrogate ? 'S' : ''}` : '—'
+    }).join(' · ')
+  }
+
+  return (
+    <div>
+      <h3 className="mb-2 text-sm font-semibold text-zinc-600 dark:text-zinc-400">
+        Scheduled — no results yet ({rows.length})
+      </h3>
+
+      {/* Mobile: cards */}
+      <div className="space-y-2 sm:hidden">
+        {rows.map((m, i) => {
+          const fmt = m.startTime ? fmtScheduleTime(m.startTime) : null
+          return (
+            <div key={i} className="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+              <div className="flex items-center justify-between border-b border-zinc-100 px-3 py-1.5 dark:border-zinc-800">
+                <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">{m.description ?? '—'}</span>
+                {fmt && (
+                  <span className="text-xs text-zinc-400 dark:text-zinc-500">
+                    {fmt.date} {fmt.time} {fmt.tzAbbr}
+                  </span>
+                )}
+              </div>
+              <div className="grid grid-cols-2 divide-x divide-zinc-100 dark:divide-zinc-800">
+                <div className="bg-red-50/50 p-3 dark:bg-red-950/10">
+                  <p className="font-mono text-xs text-red-700 dark:text-red-300">{alliance(m.teams, 'Red')}</p>
+                </div>
+                <div className="bg-blue-50/50 p-3 dark:bg-blue-950/10">
+                  <p className="font-mono text-xs text-blue-700 dark:text-blue-300">{alliance(m.teams, 'Blue')}</p>
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Desktop: table */}
+      <div className="hidden sm:block">
+        <TableWrap>
+          <thead>
+            <tr className="border-b border-zinc-100 dark:border-zinc-800">
+              <th className={TH}>Match</th>
+              <th className={TH}>Start Time</th>
+              <th className={`${TH} bg-red-50 text-red-600 dark:bg-red-950/25 dark:text-red-400`}>Red Alliance</th>
+              <th className={`${TH} bg-blue-50 text-blue-600 dark:bg-blue-950/25 dark:text-blue-400`}>Blue Alliance</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+            {rows.map((m, i) => {
+              const fmt = m.startTime ? fmtScheduleTime(m.startTime) : null
+              return (
+                <tr key={i} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
+                  <td className={TD}>{m.description ?? '—'}</td>
+                  <td className={`${TD} tabular-nums text-zinc-400 dark:text-zinc-500`}>
+                    {fmt ? `${fmt.date} ${fmt.time} ${fmt.tzAbbr}` : '—'}
+                  </td>
+                  <td className={`${TD} bg-red-50 font-mono text-red-700 dark:bg-red-950/25 dark:text-red-300`}>
+                    {alliance(m.teams, 'Red')}
+                  </td>
+                  <td className={`${TD} bg-blue-50 font-mono text-blue-700 dark:bg-blue-950/25 dark:text-blue-300`}>
+                    {alliance(m.teams, 'Blue')}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </TableWrap>
+      </div>
+    </div>
+  )
+}
+
 // ── Matches table ────────────────────────────────────────────────────────────
 
 function MatchesTable({ matches }: { matches: MatchRow[] }) {
   const visible = matches.filter((m) => m.tournamentLevel !== 'None')
 
-  return (
-    <TableWrap>
-      <thead>
-        <tr className="border-b border-zinc-100 dark:border-zinc-800">
-          <th className={TH}>Description</th>
-          <th className={`${TH} bg-red-50 text-red-600 dark:bg-red-950/25 dark:text-red-400`}>Red Alliance</th>
-          <th className={`${TH} bg-blue-50 text-blue-600 dark:bg-blue-950/25 dark:text-blue-400`}>Blue Alliance</th>
-          <th className={`${TH} bg-red-50 text-red-600 dark:bg-red-950/25 dark:text-red-400`}>Red Score</th>
-          <th className={`${TH} bg-blue-50 text-blue-600 dark:bg-blue-950/25 dark:text-blue-400`}>Blue Score</th>
-        </tr>
-      </thead>
-      <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
-        {visible.length === 0 ? (
-          <EmptyRow cols={5} msg="No match data for this event." />
-        ) : (
-          visible.map((m, i) => {
-            const redWins =
-              m.scoreRedFinal != null &&
-              m.scoreBlueFinal != null &&
-              m.scoreRedFinal > m.scoreBlueFinal
-            const blueWins =
-              m.scoreRedFinal != null &&
-              m.scoreBlueFinal != null &&
-              m.scoreBlueFinal > m.scoreRedFinal
+  if (visible.length === 0) {
+    return (
+      <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+        <p className="px-4 py-10 text-center text-sm text-zinc-400 dark:text-zinc-500">No match data for this event.</p>
+      </div>
+    )
+  }
 
-            return (
-              <tr key={i} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
-                <td className={TD}>{m.description ?? '—'}</td>
-                <td className={`${TD} bg-red-50 font-mono text-red-700 dark:bg-red-950/25 dark:text-red-300`}>
-                  <AllianceCell teams={m.teams} color="Red" winner={redWins} />
-                </td>
-                <td className={`${TD} bg-blue-50 font-mono text-blue-700 dark:bg-blue-950/25 dark:text-blue-300`}>
-                  <AllianceCell teams={m.teams} color="Blue" winner={blueWins} />
-                </td>
-                <td className={`${TD} bg-red-50 dark:bg-red-950/25`}>
-                  {m.scoreRedFinal != null ? (
-                    <span className={`text-red-700 dark:text-red-300 ${redWins ? 'text-base font-bold' : ''}`}>
-                      {redWins && <span className="mr-1 text-yellow-400">★</span>}
-                      {m.scoreRedFinal}
-                    </span>
-                  ) : '—'}
-                </td>
-                <td className={`${TD} bg-blue-50 dark:bg-blue-950/25`}>
-                  {m.scoreBlueFinal != null ? (
-                    <span className={`text-blue-700 dark:text-blue-300 ${blueWins ? 'text-base font-bold' : ''}`}>
-                      {blueWins && <span className="mr-1 text-yellow-400">★</span>}
-                      {m.scoreBlueFinal}
-                    </span>
-                  ) : '—'}
-                </td>
-              </tr>
-            )
-          })
-        )}
-      </tbody>
-    </TableWrap>
+  return (
+    <>
+      {/* Mobile: card layout */}
+      <div className="space-y-2 sm:hidden">
+        {visible.map((m, i) => {
+          const redWins  = m.scoreRedFinal  != null && m.scoreBlueFinal != null && m.scoreRedFinal  > m.scoreBlueFinal
+          const blueWins = m.scoreBlueFinal != null && m.scoreRedFinal  != null && m.scoreBlueFinal > m.scoreRedFinal
+          const alliance = (color: 'Red' | 'Blue') =>
+            [1, 2, 3].map(n => {
+              const t = m.teams.find(t => t.station === `${color}${n}`)
+              return t ? `${t.teamNumber}${t.dq ? '*' : ''}` : '—'
+            }).join(' · ')
+          return (
+            <div key={i} className="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+              <div className="border-b border-zinc-100 px-3 py-1.5 dark:border-zinc-800">
+                <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">{m.description ?? '—'}</span>
+              </div>
+              <div className="grid grid-cols-2 divide-x divide-zinc-100 dark:divide-zinc-800">
+                <div className="bg-red-50/70 p-3 dark:bg-red-950/20">
+                  <p className="mb-1 font-mono text-xs leading-snug text-red-700 dark:text-red-300">{alliance('Red')}</p>
+                  {m.scoreRedFinal != null
+                    ? <p className={`text-2xl font-bold ${redWins ? 'text-red-700 dark:text-red-200' : 'text-red-400 dark:text-red-500'}`}>
+                        {redWins && <span className="mr-0.5 text-base text-yellow-400">★</span>}{m.scoreRedFinal}
+                      </p>
+                    : <p className="text-sm text-zinc-400">—</p>
+                  }
+                </div>
+                <div className="bg-blue-50/70 p-3 dark:bg-blue-950/20">
+                  <p className="mb-1 font-mono text-xs leading-snug text-blue-700 dark:text-blue-300">{alliance('Blue')}</p>
+                  {m.scoreBlueFinal != null
+                    ? <p className={`text-2xl font-bold ${blueWins ? 'text-blue-700 dark:text-blue-200' : 'text-blue-400 dark:text-blue-500'}`}>
+                        {blueWins && <span className="mr-0.5 text-base text-yellow-400">★</span>}{m.scoreBlueFinal}
+                      </p>
+                    : <p className="text-sm text-zinc-400">—</p>
+                  }
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Desktop: table layout */}
+      <div className="hidden sm:block">
+        <TableWrap>
+          <thead>
+            <tr className="border-b border-zinc-100 dark:border-zinc-800">
+              <th className={TH}>Description</th>
+              <th className={`${TH} bg-red-50 text-red-600 dark:bg-red-950/25 dark:text-red-400`}>Red Alliance</th>
+              <th className={`${TH} bg-blue-50 text-blue-600 dark:bg-blue-950/25 dark:text-blue-400`}>Blue Alliance</th>
+              <th className={`${TH} bg-red-50 text-red-600 dark:bg-red-950/25 dark:text-red-400`}>Red Score</th>
+              <th className={`${TH} bg-blue-50 text-blue-600 dark:bg-blue-950/25 dark:text-blue-400`}>Blue Score</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+            {visible.map((m, i) => {
+              const redWins  = m.scoreRedFinal  != null && m.scoreBlueFinal != null && m.scoreRedFinal  > m.scoreBlueFinal
+              const blueWins = m.scoreBlueFinal != null && m.scoreRedFinal  != null && m.scoreBlueFinal > m.scoreRedFinal
+              return (
+                <tr key={i} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
+                  <td className={TD}>{m.description ?? '—'}</td>
+                  <td className={`${TD} bg-red-50 font-mono text-red-700 dark:bg-red-950/25 dark:text-red-300`}>
+                    <AllianceCell teams={m.teams} color="Red" winner={redWins} />
+                  </td>
+                  <td className={`${TD} bg-blue-50 font-mono text-blue-700 dark:bg-blue-950/25 dark:text-blue-300`}>
+                    <AllianceCell teams={m.teams} color="Blue" winner={blueWins} />
+                  </td>
+                  <td className={`${TD} bg-red-50 dark:bg-red-950/25`}>
+                    {m.scoreRedFinal != null ? (
+                      <span className={`text-red-700 dark:text-red-300 ${redWins ? 'text-base font-bold' : ''}`}>
+                        {redWins && <span className="mr-1 text-yellow-400">★</span>}{m.scoreRedFinal}
+                      </span>
+                    ) : '—'}
+                  </td>
+                  <td className={`${TD} bg-blue-50 dark:bg-blue-950/25`}>
+                    {m.scoreBlueFinal != null ? (
+                      <span className={`text-blue-700 dark:text-blue-300 ${blueWins ? 'text-base font-bold' : ''}`}>
+                        {blueWins && <span className="mr-1 text-yellow-400">★</span>}{m.scoreBlueFinal}
+                      </span>
+                    ) : '—'}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </TableWrap>
+      </div>
+    </>
   )
 }
 
@@ -283,7 +422,7 @@ function AnalysisTab({ summaries, emptyMessage }: { summaries: AllianceSummaryRo
   return (
     <div>
       {/* Controls */}
-      <div className="mb-4 flex flex-wrap items-center gap-4">
+      <div className="mb-4 flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-2">
           <span className="text-sm text-zinc-500 dark:text-zinc-400">Score type</span>
           <div className="inline-flex rounded-lg border border-zinc-200 bg-zinc-100 p-0.5 dark:border-zinc-700 dark:bg-zinc-800">
@@ -358,6 +497,8 @@ export default function EventPage({
   matches,
   allianceSummaries,
   latestAllianceSummaries,
+  hasSrzData,
+  scheduledMatches,
 }: {
   event: EventDetail
   teams: TeamRow[]
@@ -365,8 +506,39 @@ export default function EventPage({
   matches: MatchRow[]
   allianceSummaries: AllianceSummaryRow[]
   latestAllianceSummaries: AllianceSummaryRow[]
+  hasSrzData: boolean
+  scheduledMatches: ScheduleRow[]
 }) {
-  const [activeTab, setActiveTab] = useState<Tab>('teams')
+  const eventEnded = event.dateEnd ? new Date(event.dateEnd) < new Date() : false
+
+  // Schedule entries that don't yet have a scored match record
+  const scoredKeys = new Set(
+    matches
+      .filter(m => m.scoreRedFinal != null || m.scoreBlueFinal != null)
+      .map(m => `${m.tournamentLevel}:${m.matchNumber}`)
+  )
+  const unscoredSchedule = scheduledMatches.filter(
+    s => !scoredKeys.has(`${s.tournamentLevel}:${s.matchNumber}`)
+  )
+
+  const visibleTabs = TABS.filter(t => {
+    if (t.id === 'pre-analysis' && eventEnded) return false
+    if (t.id === 'srz-analysis' && !hasSrzData)  return false
+    return true
+  })
+
+  const [activeTab, setActiveTab]     = useState<Tab>('teams')
+  const [teamFilter, setTeamFilter]   = useState('')
+
+  const teamFilterNum = parseInt(teamFilter, 10)
+  const hasFilter     = teamFilter.trim() !== '' && !isNaN(teamFilterNum)
+
+  const filteredMatches  = hasFilter
+    ? matches.filter(m => m.teams.some(t => t.teamNumber === teamFilterNum))
+    : matches
+  const filteredSchedule = hasFilter
+    ? unscoredSchedule.filter(s => s.teams.some(t => t.teamNumber === teamFilterNum))
+    : unscoredSchedule
 
   const loc   = formatLocation(event.city, event.stateProv, event.country)
   const dates = formatDateRange(event.dateStart, event.dateEnd)
@@ -383,13 +555,13 @@ export default function EventPage({
         {event.districtCode ? ` · ${event.districtCode}` : ''}
       </p>
 
-      {/* Tab bar */}
-      <div className="mb-6 flex gap-1 border-b border-zinc-200 dark:border-zinc-800">
-        {TABS.map((t) => (
+      {/* Tab bar — horizontally scrollable on small screens */}
+      <div className="mb-6 flex gap-1 overflow-x-auto border-b border-zinc-200 dark:border-zinc-800">
+        {visibleTabs.map((t) => (
           <button
             key={t.id}
             onClick={() => setActiveTab(t.id)}
-            className={`-mb-px border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+            className={`shrink-0 whitespace-nowrap -mb-px border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
               activeTab === t.id
                 ? 'border-zinc-900 text-zinc-900 dark:border-zinc-100 dark:text-zinc-100'
                 : 'border-transparent text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300'
@@ -403,7 +575,31 @@ export default function EventPage({
       {/* Tab content */}
       {activeTab === 'teams'        && <TeamsTable    teams={teams} />}
       {activeTab === 'rankings'     && <RankingsTable rankings={rankings} />}
-      {activeTab === 'matches'      && <MatchesTable  matches={matches} />}
+      {activeTab === 'matches' && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <input
+              type="number"
+              value={teamFilter}
+              onChange={e => setTeamFilter(e.target.value)}
+              placeholder="Filter by team number…"
+              className="h-9 w-48 rounded-lg border border-zinc-300 bg-white px-3 text-sm text-zinc-700 placeholder:text-zinc-400 focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 dark:placeholder:text-zinc-500 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+            />
+            {hasFilter && (
+              <button
+                onClick={() => setTeamFilter('')}
+                className="text-sm text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+          <div className="space-y-6">
+            <ScheduleTable rows={filteredSchedule} />
+            <MatchesTable matches={filteredMatches} />
+          </div>
+        </div>
+      )}
       {activeTab === 'pre-analysis' && (
         <AnalysisTab
           summaries={latestAllianceSummaries}

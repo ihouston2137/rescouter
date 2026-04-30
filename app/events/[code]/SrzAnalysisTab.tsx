@@ -447,10 +447,14 @@ function TeamPopup({ teamNumber, summary, allSummaries, eventCode, onClose }: {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 sm:p-4"
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
-      <div className="relative flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900">
+      <div className="relative flex max-h-[88vh] w-full sm:max-w-3xl flex-col overflow-hidden rounded-t-2xl sm:rounded-xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900">
+        {/* Drag handle – mobile only */}
+        <div className="sm:hidden shrink-0 flex justify-center pt-2 pb-1">
+          <div className="h-1 w-10 rounded-full bg-zinc-300 dark:bg-zinc-600" />
+        </div>
         {/* Header */}
         <div className="flex shrink-0 items-center justify-between border-b border-zinc-100 px-5 py-3 dark:border-zinc-800">
           <div>
@@ -618,10 +622,10 @@ export default function SrzAnalysisTab({ eventCode }: { eventCode: string }) {
   return (
     <div className="space-y-4">
       {/* Category tabs */}
-      <div className="flex gap-1 border-b border-zinc-200 dark:border-zinc-800">
-        <button className={tabCls(category === 'numeric')}  onClick={() => setCategory('numeric')}>Numeric Stats</button>
-        <button className={tabCls(category === 'boolean')}  onClick={() => setCategory('boolean')}>Boolean Rates</button>
-        <button className={tabCls(category === 'startpos')} onClick={() => setCategory('startpos')}>Start Position</button>
+      <div className="flex gap-1 overflow-x-auto border-b border-zinc-200 dark:border-zinc-800">
+        <button className={`shrink-0 ${tabCls(category === 'numeric')}`}  onClick={() => setCategory('numeric')}>Numeric Stats</button>
+        <button className={`shrink-0 ${tabCls(category === 'boolean')}`}  onClick={() => setCategory('boolean')}>Boolean Rates</button>
+        <button className={`shrink-0 ${tabCls(category === 'startpos')}`} onClick={() => setCategory('startpos')}>Start Position</button>
       </div>
 
       {/* ── Numeric section ─────────────────────────────────────────────────── */}
@@ -639,13 +643,24 @@ export default function SrzAnalysisTab({ eventCode }: { eventCode: string }) {
             </div>
             {/* Field selector (chart + avg views) */}
             {numView !== 'table' && (
-              <div className="inline-flex flex-wrap rounded-lg border border-zinc-200 bg-zinc-100 p-0.5 dark:border-zinc-700 dark:bg-zinc-800">
-                {NUM_FIELDS.map(f => (
-                  <button key={f.key} onClick={() => setNumField(f.key)} className={btnCls(numField === f.key)}>
-                    {f.label}
-                  </button>
-                ))}
-              </div>
+              <>
+                {/* Mobile: dropdown */}
+                <select
+                  value={numField}
+                  onChange={e => setNumField(e.target.value as NumKey)}
+                  className="sm:hidden h-9 rounded-lg border border-zinc-300 bg-white px-3 text-sm text-zinc-700 focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
+                >
+                  {NUM_FIELDS.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
+                </select>
+                {/* Desktop: button group */}
+                <div className="hidden sm:inline-flex flex-wrap rounded-lg border border-zinc-200 bg-zinc-100 p-0.5 dark:border-zinc-700 dark:bg-zinc-800">
+                  {NUM_FIELDS.map(f => (
+                    <button key={f.key} onClick={() => setNumField(f.key)} className={btnCls(numField === f.key)}>
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+              </>
             )}
           </div>
 
@@ -677,13 +692,24 @@ export default function SrzAnalysisTab({ eventCode }: { eventCode: string }) {
               ))}
             </div>
             {boolView === 'chart' && (
-              <div className="inline-flex flex-wrap rounded-lg border border-zinc-200 bg-zinc-100 p-0.5 dark:border-zinc-700 dark:bg-zinc-800">
-                {BOOL_FIELDS.map(f => (
-                  <button key={f.key} onClick={() => setBoolField(f.key)} className={btnCls(boolField === f.key)}>
-                    {f.label}
-                  </button>
-                ))}
-              </div>
+              <>
+                {/* Mobile: dropdown */}
+                <select
+                  value={boolField}
+                  onChange={e => setBoolField(e.target.value as BoolKey)}
+                  className="sm:hidden h-9 rounded-lg border border-zinc-300 bg-white px-3 text-sm text-zinc-700 focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
+                >
+                  {BOOL_FIELDS.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
+                </select>
+                {/* Desktop: button group */}
+                <div className="hidden sm:inline-flex flex-wrap rounded-lg border border-zinc-200 bg-zinc-100 p-0.5 dark:border-zinc-700 dark:bg-zinc-800">
+                  {BOOL_FIELDS.map(f => (
+                    <button key={f.key} onClick={() => setBoolField(f.key)} className={btnCls(boolField === f.key)}>
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+              </>
             )}
           </div>
 

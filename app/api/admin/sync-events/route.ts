@@ -32,6 +32,7 @@ export async function POST() {
           country: evt.country,
           dateStart: evt.dateStart ? new Date(evt.dateStart as string) : undefined,
           dateEnd: evt.dateEnd ? new Date(evt.dateEnd as string) : undefined,
+          timezone: evt.timezone ?? undefined,
           webcasts: evt.webcasts ?? [],
         },
         { upsert: true, returnDocument: 'after' }

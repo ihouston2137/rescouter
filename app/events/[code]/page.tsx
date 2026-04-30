@@ -8,8 +8,10 @@ import Ranking from '@/lib/models/Ranking'
 import Match from '@/lib/models/Match'
 import EventTeamAllianceSummary from '@/lib/models/EventTeamAllianceSummary'
 import EventTeamAllianceSummaryLatest from '@/lib/models/EventTeamAllianceSummaryLatest'
+import ScoutRadiozSummary from '@/lib/models/ScoutRadiozSummary'
+import FrcSchedule from '@/lib/models/FrcSchedule'
 import EventPage from './EventPage'
-import type { EventDetail, TeamRow, RankingRow, MatchRow, AllianceSummaryRow } from './EventPage'
+import type { EventDetail, TeamRow, RankingRow, MatchRow, AllianceSummaryRow, ScheduleRow } from './EventPage'
 
 export default async function EventDetailPage({
   params,
@@ -28,7 +30,7 @@ export default async function EventDetailPage({
   const season = eventDoc.season as number
 
   // Parallel fetch
-  const [eventTeamDocs, rankingDocs, matchDocs, allianceSummaryDocs] = await Promise.all([
+  const [eventTeamDocs, rankingDocs, matchDocs, allianceSummaryDocs, srzCount, scheduleDocs] = await Promise.all([
     EventTeams.find({ eventCode: code, season }).select('-_id teamNumber').lean(),
     Ranking.find({ eventCode: code, season })
       .sort({ rank: 1 })
@@ -40,6 +42,11 @@ export default async function EventDetailPage({
     EventTeamAllianceSummary.find({ eventCode: code, season })
       .sort({ adjustedFinalMedian: -1, finalMedian: -1 })
       .select('-_id teamNumber autoMin autoQ1 autoMedian autoQ3 autoMax finalMin finalQ1 finalMedian finalQ3 finalMax adjustedAutoMin adjustedAutoQ1 adjustedAutoMedian adjustedAutoQ3 adjustedAutoMax adjustedFinalMin adjustedFinalQ1 adjustedFinalMedian adjustedFinalQ3 adjustedFinalMax')
+      .lean(),
+    ScoutRadiozSummary.countDocuments({ eventCode: code.toUpperCase() }),
+    FrcSchedule.find({ eventCode: code, season })
+      .sort({ tournamentLevel: 1, matchNumber: 1 })
+      .select('-_id tournamentLevel matchNumber description startTime teams')
       .lean(),
   ])
 
@@ -106,7 +113,11 @@ export default async function EventDetailPage({
       description: (m.description as string | undefined) ?? null,
       scoreRedFinal: (m.scoreRedFinal as number | undefined) ?? null,
       scoreBlueFinal: (m.scoreBlueFinal as number | undefined) ?? null,
-      teams: (m.teams ?? []) as Array<{ teamNumber: number; station: string; dq: boolean }>,
+      teams: (m.teams ?? []).map((t: any) => ({
+        teamNumber: t.teamNumber as number,
+        station:    t.station as string,
+        dq:         Boolean(t.dq),
+      })),
     }))
     .sort((a, b) => {
       const diff = (levelOrder[a.tournamentLevel] ?? 0) - (levelOrder[b.tournamentLevel] ?? 0)
@@ -144,6 +155,24 @@ export default async function EventDetailPage({
 
   const latestAllianceSummaries: AllianceSummaryRow[] = (latestSummaryDocs as any[]).map(mapSummaryDoc)
 
+  const scheduledMatches: ScheduleRow[] = (scheduleDocs as any[]).map((s: any) => ({
+    tournamentLevel: s.tournamentLevel as string,
+    matchNumber:     s.matchNumber as number,
+    description:     (s.description as string | undefined) ?? null,
+    startTime:       (() => {
+      const v = s.startTime
+      if (v == null) return null
+      if (typeof v === 'string') return v
+      // Old doc stored as BSON Date before schema change — extract YYYY-MM-DDTHH:MM:SS
+      return new Date(v as unknown as Date).toISOString().slice(0, 19)
+    })(),
+    teams: (s.teams ?? []).map((t: any) => ({
+      teamNumber: t.teamNumber as number,
+      station:    t.station as string,
+      surrogate:  Boolean(t.surrogate),
+    })),
+  }))
+
   const event: EventDetail = {
     code: eventDoc.code as string,
     name: (eventDoc.name as string | undefined) ?? '',
@@ -171,6 +200,8 @@ export default async function EventDetailPage({
           matches={matches}
           allianceSummaries={allianceSummaries}
           latestAllianceSummaries={latestAllianceSummaries}
+          hasSrzData={srzCount > 0}
+          scheduledMatches={scheduledMatches}
         />
       </div>
     </div>

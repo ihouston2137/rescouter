@@ -14,6 +14,7 @@ const EventSchema = new Schema({
   country: String,
   dateStart: Date,
   dateEnd: Date,
+  timezone: String,
   webcasts: [{ type: String }],
 }, { timestamps: true })
 

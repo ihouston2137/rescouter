@@ -44,11 +44,15 @@ export default function SyncDashboard({ season }: { season: string }) {
   const [teamResult, setTeamResult] = useState<SyncResult | null>(null)
   const [rankingResult, setRankingResult] = useState<SyncResult | null>(null)
   const [matchResult, setMatchResult] = useState<SyncResult | null>(null)
+  const [weekMatchResult, setWeekMatchResult] = useState<SyncResult | null>(null)
+  const [weekScheduleResult, setWeekScheduleResult] = useState<SyncResult | null>(null)
   const [eventTeamsResult, setEventTeamsResult] = useState<SyncResult | null>(null)
   const [syncingEvents, setSyncingEvents] = useState(false)
   const [syncingTeams, setSyncingTeams] = useState(false)
   const [syncingRankings, setSyncingRankings] = useState(false)
   const [syncingMatches, setSyncingMatches] = useState(false)
+  const [syncingWeekMatches, setSyncingWeekMatches] = useState(false)
+  const [syncingWeekSchedule, setSyncingWeekSchedule] = useState(false)
   const [syncingEventTeams, setSyncingEventTeams] = useState(false)
 
   async function syncEvents() {
@@ -103,6 +107,32 @@ export default function SyncDashboard({ season }: { season: string }) {
     }
   }
 
+  async function syncWeekMatches() {
+    setSyncingWeekMatches(true)
+    setWeekMatchResult(null)
+    try {
+      const res = await fetch('/api/admin/sync-matches-this-week', { method: 'POST' })
+      setWeekMatchResult(await res.json())
+    } catch {
+      setWeekMatchResult({ error: 'Network error' })
+    } finally {
+      setSyncingWeekMatches(false)
+    }
+  }
+
+  async function syncWeekSchedule() {
+    setSyncingWeekSchedule(true)
+    setWeekScheduleResult(null)
+    try {
+      const res = await fetch('/api/admin/sync-schedules-this-week', { method: 'POST' })
+      setWeekScheduleResult(await res.json())
+    } catch {
+      setWeekScheduleResult({ error: 'Network error' })
+    } finally {
+      setSyncingWeekSchedule(false)
+    }
+  }
+
   async function syncEventTeams() {
     setSyncingEventTeams(true)
     setEventTeamsResult(null)
@@ -145,6 +175,20 @@ export default function SyncDashboard({ season }: { season: string }) {
         onSync={syncMatches}
         loading={syncingMatches}
         result={matchResult}
+      />
+      <SyncCard
+        title="This Week's Matches"
+        description="Pull match results only for events overlapping the current calendar week (Mon–Sun)."
+        onSync={syncWeekMatches}
+        loading={syncingWeekMatches}
+        result={weekMatchResult}
+      />
+      <SyncCard
+        title="This Week's Schedule"
+        description="Pull match schedules (Qualification + Playoff) for events overlapping the current calendar week and store in frcschedules."
+        onSync={syncWeekSchedule}
+        loading={syncingWeekSchedule}
+        result={weekScheduleResult}
       />
       <SyncCard
         title="Event Teams"
