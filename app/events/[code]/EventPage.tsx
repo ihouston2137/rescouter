@@ -227,6 +227,7 @@ function ScheduleTable({
   adjFinalMap: Map<number, number | null>
   adjAutoMap:  Map<number, number | null>
 }) {
+  const [collapsed, setCollapsed] = useState(false)
   if (rows.length === 0) return null
 
   // FRC API returns startTime as venue-local "YYYY-MM-DDTHH:MM:SS" with no TZ offset.
@@ -261,10 +262,22 @@ function ScheduleTable({
 
   return (
     <div>
-      <h3 className="mb-2 text-sm font-semibold text-zinc-600 dark:text-zinc-400">
-        Scheduled — no results yet ({rows.length})
-      </h3>
+      <button
+        onClick={() => setCollapsed(c => !c)}
+        className="mb-2 flex w-full items-center justify-between rounded-lg px-1 py-0.5 text-left text-sm font-semibold text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200"
+      >
+        <span>Upcoming Schedule ({rows.length})</span>
+        <svg
+          width="14" height="14" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+          className={`shrink-0 transition-transform duration-150 ${collapsed ? '-rotate-90' : ''}`}
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
 
+      {!collapsed && (
+      <>
       {/* Mobile: cards */}
       <div className="space-y-2 sm:hidden">
         {rows.map((m, i) => (
@@ -340,6 +353,8 @@ function ScheduleTable({
           </tbody>
         </TableWrap>
       </div>
+      </>
+      )}
     </div>
   )
 }
@@ -347,7 +362,9 @@ function ScheduleTable({
 // ── Matches table ────────────────────────────────────────────────────────────
 
 function MatchesTable({ matches }: { matches: MatchRow[] }) {
-  const visible = matches.filter((m) => m.tournamentLevel !== 'None')
+  const visible = matches.filter(
+    (m) => m.tournamentLevel !== 'None' && (m.scoreRedFinal != null || m.scoreBlueFinal != null)
+  )
 
   if (visible.length === 0) {
     return (

@@ -174,6 +174,9 @@ export default function ProcessDashboard() {
   const [scoutradiozResult, setScoutradiozResult]       = useState<ProcessResult | null>(null)
   const [importingScoutradioz, setImportingScoutradioz] = useState(false)
   const [scoutradiozFile, setScoutradiozFile]           = useState<File | null>(null)
+  const [eventCodeSelected, setEventCodeSelected]       = useState('')
+  const [eventCodeManual, setEventCodeManual]           = useState('')
+  const [activeEvents, setActiveEvents]                 = useState<{ code: string; name: string }[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [srSummaryResult, setSrSummaryResult]         = useState<ProcessResult | null>(null)
@@ -196,6 +199,13 @@ export default function ProcessDashboard() {
     fetch('/api/admin/scoutradioz/orgs')
       .then(r => r.json())
       .then((list: string[]) => { if (Array.isArray(list)) setOrgs(list) })
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    fetch('/api/admin/active-events')
+      .then(r => r.json())
+      .then((list: { code: string; name: string }[]) => { if (Array.isArray(list)) setActiveEvents(list) })
       .catch(() => {})
   }, [])
 
@@ -245,6 +255,8 @@ export default function ProcessDashboard() {
     try {
       const form = new FormData()
       form.append('file', scoutradiozFile)
+      if (eventCodeSelected) form.append('eventCodeSelected', eventCodeSelected)
+      if (eventCodeManual.trim()) form.append('eventCodeManual', eventCodeManual.trim())
       const res = await fetch('/api/admin/import-scoutradioz', { method: 'POST', body: form })
       setScoutradiozResult(await res.json())
     } catch {
@@ -335,6 +347,8 @@ export default function ProcessDashboard() {
           <p className="mb-5 text-sm text-zinc-500 dark:text-zinc-400">
             Upload a CSV export from ScoutRadioz. The file will be saved locally and all records upserted into the database keyed by org, season, event, team, and match.
           </p>
+
+          {/* File picker row */}
           <div className="flex flex-wrap items-center gap-3">
             <input
               ref={fileInputRef}
@@ -355,6 +369,54 @@ export default function ProcessDashboard() {
                 {scoutradiozFile.name}
               </span>
             )}
+          </div>
+
+          {/* Event code override */}
+          <div className="mt-4 space-y-2">
+            <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+              Event Code Override <span className="font-normal">(optional — leave blank to use the code from the file)</span>
+            </p>
+            <div className="flex flex-wrap items-center gap-3">
+              {activeEvents.length > 0 && (
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-zinc-400 dark:text-zinc-500">This week's events</label>
+                  <select
+                    value={eventCodeSelected}
+                    onChange={e => setEventCodeSelected(e.target.value)}
+                    disabled={importingScoutradioz}
+                    className="h-9 rounded-lg border border-zinc-200 bg-white px-3 text-sm text-zinc-800 focus:border-zinc-400 focus:outline-none disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:focus:border-zinc-500"
+                  >
+                    <option value="">— from file —</option>
+                    {activeEvents.map(e => (
+                      <option key={e.code} value={e.code}>{e.code}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-zinc-400 dark:text-zinc-500">Or type a code</label>
+                <input
+                  type="text"
+                  placeholder="e.g. ARCHIMEDES"
+                  value={eventCodeManual}
+                  onChange={e => setEventCodeManual(e.target.value.toUpperCase())}
+                  disabled={importingScoutradioz}
+                  className="h-9 w-44 rounded-lg border border-zinc-200 bg-white px-3 text-sm uppercase text-zinc-800 placeholder:normal-case placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus:border-zinc-500"
+                />
+              </div>
+              {(eventCodeManual.trim() || eventCodeSelected) && (
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs text-zinc-400 dark:text-zinc-500">Effective override</span>
+                  <span className="flex h-9 items-center rounded-lg bg-amber-50 px-3 text-sm font-semibold text-amber-700 dark:bg-amber-950/30 dark:text-amber-400">
+                    {eventCodeManual.trim() || eventCodeSelected}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Import button */}
+          <div className="mt-5">
             <button
               onClick={importScoutradioz}
               disabled={importingScoutradioz || !scoutradiozFile}
@@ -363,6 +425,7 @@ export default function ProcessDashboard() {
               {importingScoutradioz ? 'Processing…' : 'Import ScoutRadioz Data'}
             </button>
           </div>
+
           {scoutradiozResult && (
             <p className={`mt-4 text-sm ${scoutradiozResult.error ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
               {scoutradiozResult.error ? `Error: ${scoutradiozResult.error}` : scoutradiozResult.message}

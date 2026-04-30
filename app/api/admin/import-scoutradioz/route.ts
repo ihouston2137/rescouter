@@ -79,6 +79,11 @@ export async function POST(request: Request) {
       return Response.json({ error: 'No file uploaded' }, { status: 400 })
     }
 
+    // Optional event code override — manual entry takes precedence over dropdown selection
+    const manualCode   = (form.get('eventCodeManual')   as string | null)?.trim().toUpperCase() || null
+    const selectedCode = (form.get('eventCodeSelected') as string | null)?.trim().toUpperCase() || null
+    const eventCodeOverride = manualCode ?? selectedCode ?? null
+
     const filename = file.name
     const text = await file.text()
 
@@ -93,7 +98,11 @@ export async function POST(request: Request) {
     }
 
     const docs = rows
-      .map(transformRow)
+      .map(row => {
+        const doc = transformRow(row)
+        if (eventCodeOverride) doc.eventCode = eventCodeOverride
+        return doc
+      })
       .filter(d => !isNaN(d.season) && !isNaN(d.teamNumber) && d.org_key && d.eventCode)
 
     await connectDB()
@@ -120,7 +129,8 @@ export async function POST(request: Request) {
     return Response.json({
       count,
       filename,
-      message: `Done — ${count} records upserted from ${filename} (${docs.length} rows processed).`,
+      eventCodeOverride,
+      message: `Done — ${count} records upserted from ${filename} (${docs.length} rows processed)${eventCodeOverride ? `, event code overridden to ${eventCodeOverride}` : ''}.`,
     })
   } catch (err) {
     return Response.json({ error: (err as Error).message }, { status: 500 })

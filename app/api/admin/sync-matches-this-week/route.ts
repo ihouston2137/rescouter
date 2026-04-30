@@ -42,6 +42,8 @@ export async function POST() {
 
     let count = 0
     let eventsProcessed = 0
+    const errors: { eventCode: string; error: string }[] = []
+    const eventCodes = (weekEvents as any[]).map((e: any) => e.code as string)
 
     for (const event of weekEvents) {
       const eventCode = event.code as string
@@ -77,15 +79,20 @@ export async function POST() {
           count++
         }
 
-        eventsProcessed++
-      } catch {
-        // event has no match results yet — skip and continue
+        if (matches.length > 0) eventsProcessed++
+      } catch (err) {
+        errors.push({ eventCode, error: (err as Error).message })
       }
     }
 
     return Response.json({
       count,
-      message: `Done — ${count} matches upserted across ${eventsProcessed} of ${weekEvents.length} this-week events.`,
+      weekEvents: weekEvents.length,
+      eventCodes,
+      eventsProcessed,
+      errors,
+
+      message: `Done — ${count} matches upserted across ${eventsProcessed} of ${weekEvents.length} this-week events.${errors.length ? ` ${errors.length} event(s) errored.` : ''}`,
     })
   } catch (err) {
     return Response.json({ error: (err as Error).message }, { status: 500 })
