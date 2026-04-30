@@ -220,10 +220,12 @@ const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov
 
 function ScheduleTable({
   rows,
-  finalMedianMap,
+  adjFinalMap,
+  adjAutoMap,
 }: {
   rows: ScheduleRow[]
-  finalMedianMap: Map<number, number | null>
+  adjFinalMap: Map<number, number | null>
+  adjAutoMap:  Map<number, number | null>
 }) {
   if (rows.length === 0) return null
 
@@ -245,12 +247,12 @@ function ScheduleTable({
     }).join(' · ')
   }
 
-  function allianceOpr(teams: ScheduleRow['teams'], color: 'Red' | 'Blue') {
+  function allianceSum(teams: ScheduleRow['teams'], color: 'Red' | 'Blue', map: Map<number, number | null>) {
     let total = 0, count = 0
     for (let n = 1; n <= 3; n++) {
       const t = teams.find(t => t.station === `${color}${n}`)
       if (t) {
-        const val = finalMedianMap.get(t.teamNumber)
+        const val = map.get(t.teamNumber)
         if (val != null) { total += val; count++ }
       }
     }
@@ -278,11 +280,15 @@ function ScheduleTable({
             <div className="grid grid-cols-2 divide-x divide-zinc-100 dark:divide-zinc-800">
               <div className="bg-red-50/50 p-3 dark:bg-red-950/10">
                 <p className="font-mono text-xs text-red-700 dark:text-red-300">{allianceTeams(m.teams, 'Red')}</p>
-                <p className="mt-1 text-xs text-red-500 dark:text-red-400">OPR {allianceOpr(m.teams, 'Red')}</p>
+                <p className="mt-1 text-xs text-red-500 dark:text-red-400">
+                  OPR {allianceSum(m.teams, 'Red', adjFinalMap)} · Auto {allianceSum(m.teams, 'Red', adjAutoMap)}
+                </p>
               </div>
               <div className="bg-blue-50/50 p-3 dark:bg-blue-950/10">
                 <p className="font-mono text-xs text-blue-700 dark:text-blue-300">{allianceTeams(m.teams, 'Blue')}</p>
-                <p className="mt-1 text-xs text-blue-500 dark:text-blue-400">OPR {allianceOpr(m.teams, 'Blue')}</p>
+                <p className="mt-1 text-xs text-blue-500 dark:text-blue-400">
+                  OPR {allianceSum(m.teams, 'Blue', adjFinalMap)} · Auto {allianceSum(m.teams, 'Blue', adjAutoMap)}
+                </p>
               </div>
             </div>
           </div>
@@ -298,8 +304,10 @@ function ScheduleTable({
               <th className={TH}>Start Time</th>
               <th className={`${TH} bg-red-50 text-red-600 dark:bg-red-950/25 dark:text-red-400`}>Red Alliance</th>
               <th className={`${TH} bg-red-50 text-red-600 dark:bg-red-950/25 dark:text-red-400`}>Red OPR</th>
+              <th className={`${TH} bg-red-50 text-red-600 dark:bg-red-950/25 dark:text-red-400`}>Red Auto</th>
               <th className={`${TH} bg-blue-50 text-blue-600 dark:bg-blue-950/25 dark:text-blue-400`}>Blue Alliance</th>
               <th className={`${TH} bg-blue-50 text-blue-600 dark:bg-blue-950/25 dark:text-blue-400`}>Blue OPR</th>
+              <th className={`${TH} bg-blue-50 text-blue-600 dark:bg-blue-950/25 dark:text-blue-400`}>Blue Auto</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
@@ -313,13 +321,19 @@ function ScheduleTable({
                   {allianceTeams(m.teams, 'Red')}
                 </td>
                 <td className={`${TD} bg-red-50 tabular-nums text-red-700 dark:bg-red-950/25 dark:text-red-300`}>
-                  {allianceOpr(m.teams, 'Red')}
+                  {allianceSum(m.teams, 'Red', adjFinalMap)}
+                </td>
+                <td className={`${TD} bg-red-50 tabular-nums text-red-700 dark:bg-red-950/25 dark:text-red-300`}>
+                  {allianceSum(m.teams, 'Red', adjAutoMap)}
                 </td>
                 <td className={`${TD} bg-blue-50 font-mono text-blue-700 dark:bg-blue-950/25 dark:text-blue-300`}>
                   {allianceTeams(m.teams, 'Blue')}
                 </td>
                 <td className={`${TD} bg-blue-50 tabular-nums text-blue-700 dark:bg-blue-950/25 dark:text-blue-300`}>
-                  {allianceOpr(m.teams, 'Blue')}
+                  {allianceSum(m.teams, 'Blue', adjFinalMap)}
+                </td>
+                <td className={`${TD} bg-blue-50 tabular-nums text-blue-700 dark:bg-blue-950/25 dark:text-blue-300`}>
+                  {allianceSum(m.teams, 'Blue', adjAutoMap)}
                 </td>
               </tr>
             ))}
@@ -535,10 +549,17 @@ export default function EventPage({
 }) {
   const eventEnded = event.dateEnd ? new Date(event.dateEnd) < new Date() : false
 
-  // team → finalMedian: latest summaries as base, event summaries override
-  const finalMedianMap = new Map<number, number | null>()
-  for (const s of latestAllianceSummaries) finalMedianMap.set(s.teamNumber, s.finalMedian)
-  for (const s of allianceSummaries)       finalMedianMap.set(s.teamNumber, s.finalMedian)
+  // team → adjusted medians: latest summaries as base, event summaries override
+  const adjFinalMap = new Map<number, number | null>()
+  const adjAutoMap  = new Map<number, number | null>()
+  for (const s of latestAllianceSummaries) {
+    adjFinalMap.set(s.teamNumber, s.adjustedFinalMedian)
+    adjAutoMap.set(s.teamNumber,  s.adjustedAutoMedian)
+  }
+  for (const s of allianceSummaries) {
+    adjFinalMap.set(s.teamNumber, s.adjustedFinalMedian)
+    adjAutoMap.set(s.teamNumber,  s.adjustedAutoMedian)
+  }
 
   // Schedule entries that don't yet have a scored match record
   const scoredKeys = new Set(
@@ -624,7 +645,7 @@ export default function EventPage({
             )}
           </div>
           <div className="space-y-6">
-            <ScheduleTable rows={filteredSchedule} finalMedianMap={finalMedianMap} />
+            <ScheduleTable rows={filteredSchedule} adjFinalMap={adjFinalMap} adjAutoMap={adjAutoMap} />
             <MatchesTable matches={filteredMatches} />
           </div>
         </div>
